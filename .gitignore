@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata\
+ewas_snakemake.Rproj
+results/
+.vscode/
+__pycache__/
+.snakemake
+annotation_files/
+log/
+config.yml
+data/
+scripts/meta_analysis_script.sh
