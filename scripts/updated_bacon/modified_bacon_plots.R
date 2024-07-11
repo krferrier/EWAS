@@ -57,7 +57,6 @@ setMethod("ggposteriors", "Bacon", function(object, thetas, index, alphas, xlab,
     stat_ellipse(level = 0.95, col = "blue") +
     stat_ellipse(level = 0.9, col = "blue") +
     stat_ellipse(level = 0.75, col = "blue") +
-  # theme_cowplot(font_size = 12) +
     theme_cowplot(font_size = 12) +
     labs(x = xlab,
          y = ylab) + 
