@@ -11,4 +11,4 @@ annotation_files/
 log/
 config.yml
 scripts/meta_analysis_script.sh
-#/data
+/data
