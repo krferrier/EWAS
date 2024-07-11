@@ -23,7 +23,7 @@ The final results will be annotated with hg38/GRCh38 human genome build informat
 
 This workflow uses a configuration file, `config.yml`, to specify the paths for input and output files, what kind of EWAS to perform (standard or stratified), and parallelization parameters.
 
-### Input Files
+### *Input Files*
 
 This workflow is intended to be used with phenotype and methylation data that has already been cleaned and has no missing/`NA` data. The first column of the phenotype data and the methylation data must be the sample IDs. Examples of what the phenotype and methylation data should look like can be found in the `data/` directory. Accepted input file types:
 
@@ -33,7 +33,7 @@ This workflow is intended to be used with phenotype and methylation data that ha
 * fast-storate (.fst):
   * file path
 
-### Output Files
+### *Output Files*
 
 Output files will be generated in the 'out_directory' specified in the config file.
 
@@ -51,7 +51,7 @@ Output files will be generated in the 'out_directory' specified in the config fi
 * final meta-analyzed and annotated results (.csv or .csv.gz)
 * manhattan and qq plots (.jpg)
 
-### Parallelization Parameters
+### *Parallelization Parameters*
 
 The rule 'ewas' first chunks the methylation dataset into sets of CpGs where the length of each set is specified by the parameter `chunks` in the config file (default of 1000 CpGs if a number is not provided). Then, linear regressions are run for each chunk and the results combined back into one dataframe once all chunks have been processed. Run sequentially, this step could take several hours. However, each chunk can be processed in parallel to reduce the total computation time.
 
@@ -90,7 +90,17 @@ snakemake -j 1 --use-conda
 snakemake -j 1 --use-conda --use-singularity
 ```
 
-## Interpretation of BACON Performance Plots
+## Track Progress
+
+In the `run_ewas` step, a progress reporting bar is generated and output to stdout which will show percent finished and the estimated time to completion. For a standard EWAS, nothing needs to be done to view the progress bar in your terminal. 
+
+For a stratified EWAS, once the `run_ewas` step has been reached, a`/log` directory will be created with log files for the progress of each strata. To view the progress bar of a specific stratum in the terminal, you can open a new terminal, navigate to the directory you are running the snakemake workflow,then run:
+
+```shell
+tail -F log/<stratum>_ewas.log
+``` 
+
+# Interpretation of BACON Performance Plots
 
 There are four plot types output from the bias- and inflation- adjustment analysis step to assess the performance of the Gibbs Sampler algorithm including:
 
