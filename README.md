@@ -117,7 +117,7 @@ The traces plot shows the evolution of each parameter over time during the Gibbs
 
 ![Example of the output traces plot from performing bias- and inflation-adjustment with BACON.](/data/example_plots/traces_plot.jpg "Example Traces Plot")
 
-In the above plot, you can see that the traces for converged on their respective estimates after a period of divergence for all parameters except mu.1. The initial prior estimate for mu.1 was close to the final estimate (the range of estimates is relatively small), so the algorithm converged quickly and resulted in a 'hairy caterpillar' plot.
+In the above plot, you can see that the traces converged on their respective estimates after a period of divergence for all parameters except mu.1. The initial prior estimate for mu.1 was close to the final estimate (the range of estimates is relatively small), so the algorithm converged quickly and resulted in a 'hairy caterpillar' plot.
 
 ### Posteriors Plot
 
@@ -130,7 +130,7 @@ The posteriors plot is a scatterplot of the estimated posterior values of the pa
 The fit plot shows the distribution of the z-scores for each observation in the dataset as a histogram. Overlayed is a black density line of the overall fit of the model estimated by the Gibb's Sampling algorithm based on three components: a null component (red density line) and two alternate components (blue and green density lines). In the case of an EWAS:
 
 * **Null Component**: The background noise or null hypothesis that a CpG is not significantly associated with the phenotype.
-* **Alternate Components**: The alternative hypotheses; the CpG is significantly associated with the disease in a negative or positive way.
+* **Alternate Components**: The alternative hypotheses; the CpG is significantly associated with the phenotype in a negative or positive way.
 
 If the estimated distribution (black line) is vastly different from the observed distribution, then the model may be mis-specified and/or the Gibb's Sampling algorithm did not converge on an estimate. If the estimated distribution is similar to the observed distribution, then the model is likely correctly specified.
 
