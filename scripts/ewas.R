@@ -186,7 +186,7 @@ ewas <- function(mvals, pheno){
       .GlobalEnv$m.chunk <- m.chunk
       model.base <- paste(colnames(pheno), collapse = " + ")
       string.formula <- paste0("m.chunk$", i, " ~ ", model.base)
-      fit <- lm(formula = string.formula, data = pheno) %>%
+      fit <- glm(formula = string.formula, data = pheno) %>%
         broom::tidy(conf.int = F) %>%
         dplyr::filter(term %in% c(assoc_var)) %>%
         dplyr::mutate(cpgid = i)
