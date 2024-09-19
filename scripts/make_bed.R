@@ -47,19 +47,22 @@ res <- fread(results)
 if(stratified=="no"){
     res <- res  %>% 
             dplyr::select(CpG_chrm,CpG_beg,CpG_end, bacon.pval) %>%
-            mutate(bacon.pval = as.numeric(bacon.pval))  %>% 
             dplyr::rename("chrom" = "CpG_chrm",
                           "start" = "CpG_beg",
                           "end" = "CpG_end",
-                          "pvals" = "bacon.pval")
+                          "pvals" = "bacon.pval")  %>% 
+            mutate(chrom = sub("^", "chr", chrom))  %>% 
+            arrange(chrom, start)
 } else{
     res <- res  %>% 
         dplyr::select(CpG_chrm,CpG_beg,CpG_end, "P-value")  %>%
-        mutate("P-value" = as.numeric("P-value"))  %>% 
         dplyr::rename("chrom" = "CpG_chrm",
                       "start" = "CpG_beg",
                       "end" = "CpG_end",
-                      "pvals" = "P-value")
+                      "pvals" = "P-value")  %>% 
+        mutate(chrom = sub("^", "chr", chrom))  %>% 
+        arrange(chrom, start)
+                      
 }
 
 # Export BED file
