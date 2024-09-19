@@ -14,7 +14,7 @@ The final results will be annotated with hg38/GRCh38 human genome build informat
 ---
 
 * Conda/Mamba
-* Snakemake
+* Snakemake, version = 8.9.0
 * Singularity (only for stratified EWAS)
 
 # Using this Workflow
