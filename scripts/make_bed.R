@@ -51,7 +51,6 @@ if(stratified=="no"){
                           "start" = "CpG_beg",
                           "end" = "CpG_end",
                           "pvals" = "bacon.pval")  %>% 
-            mutate(chrom = sub("^", "chr", chrom))  %>% 
             arrange(chrom, start)
 } else{
     res <- res  %>% 
@@ -60,7 +59,6 @@ if(stratified=="no"){
                       "start" = "CpG_beg",
                       "end" = "CpG_end",
                       "pvals" = "P-value")  %>% 
-        mutate(chrom = sub("^", "chr", chrom))  %>% 
         arrange(chrom, start)
                       
 }
