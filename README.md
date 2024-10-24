@@ -32,7 +32,7 @@ This workflow is intended to be used with phenotype and methylation data that ha
 * regular delimited (.csv, .tsv, .txt, etc.)
   * file path or URL
   * can be `.gz` or `.bz2` compressed
-* fast-storate (.fst):
+* fast-storage (.fst):
   * file path
 
 ### *Output Files*
