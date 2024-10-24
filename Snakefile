@@ -43,18 +43,19 @@ strat_bacon_plots = expand(OUT_DIR + "{group}/bacon_plots/{group}_" + ASSOC + "_
 meta_analysis_results = OUT_DIR + ASSOC + "_ewas_meta_analysis_results_1.txt"
 
 # DMR outputs
-results_bed = OUT_DIR + ASSOC + "_ewas_results.bed"
-dmr_acf = OUT_DIR + ASSOC + "_ewas.acf.txt"
-dmr_anno = OUT_DIR + ASSOC + "_ewas.anno." + ANNO + ".bed"
-dmr_args = OUT_DIR + ASSOC + "_ewas.args.txt"
-dmr_fdr = OUT_DIR + ASSOC + "_ewas.fdr.bed.gz"
-dmr_manh = OUT_DIR + ASSOC + "_ewas_manhattan.png"
-dmr_regions = OUT_DIR + ASSOC + "_ewas.regions.bed.gz"
-dmr_regions_p = OUT_DIR + ASSOC + "_ewas.regions-p.bed.gz"
-dmr_regions_t = OUT_DIR + ASSOC + "_ewas.regions-t.bed"
-dmr_slk = OUT_DIR + ASSOC + "_ewas.slk.bed.gz"
+results_bed = OUT_DIR + ASSOC + "_ewas_annotated_results.bed"
+dmr_acf = OUT_DIR + "dmr/" + ASSOC + "_ewas.acf.txt"
+dmr_anno = OUT_DIR + "dmr/" + ASSOC + "_ewas.anno." + ANNO + ".bed"
+dmr_args = OUT_DIR + "dmr/" + ASSOC + "_ewas.args.txt"
+dmr_fdr = OUT_DIR + "dmr/" + ASSOC + "_ewas.fdr.bed.gz"
+dmr_manh = OUT_DIR + "dmr/" + ASSOC + "_ewas.manhattan.png"
+dmr_regions = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions.bed.gz"
+dmr_regions_p = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions-p.bed.gz"
+dmr_regions_t = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions-t.bed"
+dmr_slk = OUT_DIR + "dmr/" +  ASSOC + "_ewas.slk.bed.gz"
 
-dmr_files = [results_bed, dmr_acf, dmr_anno, dmr_args, dmr_fdr, dmr_manh,
+dmr_infile = [results_bed]
+dmr_outfiles = [dmr_acf, dmr_anno, dmr_args, dmr_fdr, dmr_manh,
             dmr_regions, dmr_regions_p, dmr_regions_t, dmr_slk]
 
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
@@ -68,7 +69,7 @@ else:
                 manhattan_qq_plot]
 
 if DMR == "yes":
-    in_files = in_files + dmr_files
+    in_files = in_files + dmr_infile + dmr_outfiles
 else:
     in_files = in_files
 

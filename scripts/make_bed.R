@@ -4,7 +4,6 @@ suppressPackageStartupMessages({
     library(R.utils)
     library(argparse)
     library(data.table)
-    library(fst)
     library(tibble)
     library(dplyr)
 })
@@ -38,7 +37,6 @@ results <- args$results
 out_dir <- args$out_dir
 stratified <- args$stratified
 assoc <- args$assoc
-
 
 # Read in EWAS results files
 res <- fread(results)

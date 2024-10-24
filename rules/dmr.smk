@@ -13,7 +13,7 @@ rule make_bed:
     shell:
         f"""
         Rscript {{input.script}} \
-        --input-file {{input.in_file}} \
+        --results {{input.in_file}} \
         --out-dir {{params.o_dir}} \
         --stratified {{params.strat}} \
         --assoc {{params.assoc}} 
@@ -23,22 +23,22 @@ rule run_dmr:
     input:
         in_file = results_bed
     params:
-        o_prefix = OUT_DIR + ASSOC,
+        col = 4,
+        o_prefix = OUT_DIR +  "dmr/" + ASSOC + "_ewas",
         min_p = MIN_P,
         win_sz = WIN_SZ,
-        region_filter = REGION_FILTER
+        region_filter = REGION_FILTER,
         anno = ANNO
     output: 
-        dmr_files
+        dmr_outfiles
     conda:
         "../envs/dmr.yaml"
     shell:
         f"""
         comb-p pipeline \
-		-c 4 \ 
 		--seed {{params.min_p}} \
 		--dist {{params.win_sz}} \
-		-p {{params.assoc}} \
+		-p {{params.o_prefix}} \
 		--region-filter-p {{params.region_filter}} \
 		--anno {{params.anno}} \
 		{{input.in_file}} 
