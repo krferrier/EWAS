@@ -45,19 +45,19 @@ res <- fread(results)
 if(stratified=="no"){
     res <- res  %>% 
             dplyr::select(CpG_chrm,CpG_beg,CpG_end, bacon.pval) %>%
-            dplyr::rename("chrom" = "CpG_chrm",
+            arrange(CpG_chrm, CpG_beg)  %>% 
+            dplyr::rename("#chrom" = "CpG_chrm",
                           "start" = "CpG_beg",
                           "end" = "CpG_end",
-                          "pvals" = "bacon.pval")  %>% 
-            arrange(chrom, start)
+                          "pvals" = "bacon.pval")  
 } else{
     res <- res  %>% 
         dplyr::select(CpG_chrm,CpG_beg,CpG_end, "P-value")  %>%
-        dplyr::rename("chrom" = "CpG_chrm",
+        arrange(CpG_chrm, CpG_beg)  %>% 
+        dplyr::rename("#chrom" = "CpG_chrm",
                       "start" = "CpG_beg",
                       "end" = "CpG_end",
-                      "pvals" = "P-value")  %>% 
-        arrange(chrom, start)
+                      "pvals" = "P-value")
                       
 }
 
