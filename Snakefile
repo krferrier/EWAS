@@ -45,18 +45,13 @@ meta_analysis_results = OUT_DIR + ASSOC + "_ewas_meta_analysis_results_1.txt"
 # DMR outputs
 results_bed = OUT_DIR + ASSOC + "_ewas_annotated_results.bed"
 dmr_acf = OUT_DIR + "dmr/" + ASSOC + "_ewas.acf.txt"
-dmr_anno = OUT_DIR + "dmr/" + ASSOC + "_ewas.anno." + ANNO + ".bed"
 dmr_args = OUT_DIR + "dmr/" + ASSOC + "_ewas.args.txt"
 dmr_fdr = OUT_DIR + "dmr/" + ASSOC + "_ewas.fdr.bed.gz"
-dmr_manh = OUT_DIR + "dmr/" + ASSOC + "_ewas.manhattan.png"
 dmr_regions = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions.bed.gz"
-dmr_regions_p = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions-p.bed.gz"
-dmr_regions_t = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions-t.bed"
 dmr_slk = OUT_DIR + "dmr/" +  ASSOC + "_ewas.slk.bed.gz"
 
 dmr_infile = [results_bed]
-dmr_outfiles = [dmr_acf, dmr_anno, dmr_args, dmr_fdr, dmr_manh,
-            dmr_regions, dmr_regions_p, dmr_regions_t, dmr_slk]
+dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk]
 
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if STRATIFIED == "yes":
