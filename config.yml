@@ -9,6 +9,14 @@ association_variable: "BMI"
 stratified_ewas: "yes" # yes or no
 stratify_variables: ["sex"] # If yes, list which variable(s) to stratify on
 
+# Differentially Methylated Region (DMR) Analysis 
+#################################################
+dmr_analysis: "yes" # yes or no
+genome_build: "hg38" # genome build from USCS
+min_pvalue: 6.92e-08 # P-value threshold for beginning a region
+window_size: 500 # extend region if another p-value within this distance is found
+region_filter: 0.05 # post-filter reported regions
+
 # Parallelization parameters
 ############################
 chunk_size: 500 # number of methylation sites per chunk 
