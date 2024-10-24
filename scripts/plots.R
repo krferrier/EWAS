@@ -143,6 +143,6 @@ full.plot <- plot_grid(manh.plot, left.panel, labels = c("A", ""), ncol = 2,
 filename <- paste0(out_dir, assoc, "_ewas_manhattan_qq_plots.jpg")
 ggsave(filename,
       plot = full.plot,
-      width = 30,
+      width = 32,
       height = 12,
       units = "cm")
