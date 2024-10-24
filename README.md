@@ -3,6 +3,8 @@
 ---
 This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by the Illumina EPIC (850k) methylation array. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either the standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
 
+If your main predictor is categorical (with 2 levels), the values must be dummy coded to numerics. All other categorical covariates can remain as characters. The R glm() function is unable to use unordered categorical data as the main predictor because it cannot determine which of the values to use as the reference. The pipeline has not yet been tested with a main predictor that has more than two categorical levels. Automatic handling of predictors that are categorical/character values will be added in the next major update.
+
 Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
 
 The final results will be annotated with hg38/GRCh38 human genome build information collated by [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation). A manhattan and qq plot of the final results will also be output.
@@ -12,7 +14,7 @@ The final results will be annotated with hg38/GRCh38 human genome build informat
 ---
 
 * Conda/Mamba
-* Snakemake
+* Snakemake, version = 8.9.0
 * Singularity (only for stratified EWAS)
 
 # Using this Workflow
@@ -30,7 +32,7 @@ This workflow is intended to be used with phenotype and methylation data that ha
 * regular delimited (.csv, .tsv, .txt, etc.)
   * file path or URL
   * can be `.gz` or `.bz2` compressed
-* fast-storate (.fst):
+* fast-storage (.fst):
   * file path
 
 ### *Output Files*
