@@ -23,7 +23,6 @@ rule run_dmr:
     input:
         in_file = results_bed
     params:
-        col = 4,
         o_prefix = OUT_DIR +  "dmr/" + ASSOC + "_ewas",
         min_p = MIN_P,
         win_sz = WIN_SZ,
