@@ -1,21 +1,21 @@
 # Input data
 ############################
-mvals: "data/mvals.fst"
-pheno: "data/pheno.csv"
+mvals: "data/shs_methyl_all.fst"
+pheno: "data/shs_ewas_pheno_smoker.csv"
 
 # EWAS model parameters
 ############################
-association_variable: "BMI" 
-stratified_ewas: "yes" # yes or no
-stratify_variables: ["sex"] # If yes, list which variable(s) to stratify on
+association_variable: "b_SmokerStatus" 
+stratified_ewas: "no" # yes or no
+stratify_variables: [] # If yes, list which variable(s) to stratify on
 
 # Parallelization parameters
 ############################
-chunk_size: 500 # number of methylation sites per chunk 
-processing_type: "multicore" # sequential, multisession, multicore, or cluster
-workers: 3 # Number of workers per job
+chunk_size: 5000 # number of methylation sites per chunk 
+processing_type: "cluster" # sequential, multisession, multicore, or cluster
+workers: 8 # Number of workers per job
 
 # Output parameters
 ############################
-out_directory: "results/" # Include trailing '/'
+out_directory: "results_smoker/" # Include trailing '/'
 out_type: ".csv.gz" # .csv or .csv.gz

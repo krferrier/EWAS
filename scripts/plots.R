@@ -83,7 +83,7 @@ ewas %>%
                      guide = guide_axis(check.overlap = T), expand=c(0,0)) +
   scale_y_continuous(expand = c(0,0),
                      limits = c(1,28)) +
-  geom_hline(yintercept = -log10(0.05/573388),
+  geom_hline(yintercept = -log10(0.05/nrow(ewas)),
              linetype = 'solid',
              color = "red",
              linewidth = 0.5) +
@@ -143,6 +143,6 @@ full.plot <- plot_grid(manh.plot, left.panel, labels = c("A", ""), ncol = 2,
 filename <- paste0(out_dir, assoc, "_ewas_manhattan_qq_plots.jpg")
 ggsave(filename,
       plot = full.plot,
-      width = 30,
+      width = 32,
       height = 12,
       units = "cm")
