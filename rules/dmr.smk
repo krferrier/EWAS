@@ -21,7 +21,7 @@ rule make_bed:
 
 rule run_dmr:
     input:
-        results_bed
+        in_file = results_bed
     params:
         o_prefix = OUT_DIR + ASSOC,
         min_p = MIN_P,
@@ -41,5 +41,5 @@ rule run_dmr:
 		-p {{params.assoc}} \
 		--region-filter-p {{params.region_filter}} \
 		--anno {{params.anno}} \
-		~/Projects/BMI_ewas_annotated_results.bed 
+		{{input.in_file}} 
         """
