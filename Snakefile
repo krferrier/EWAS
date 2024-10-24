@@ -3,6 +3,7 @@ from helper_fxns import generate_observed_combinations
 configfile: "config.yml"
 
 #----SET VARIABLES----#
+## EWAS VARIABLES
 PHENO = config["pheno"]
 MVALS = config["mvals"]
 ASSOC = config["association_variable"]
@@ -14,6 +15,13 @@ N_WORKERS = config["workers"]
 OUT_DIR = config["out_directory"]
 OUT_TYPE = config["out_type"]
 PLOTS = ["traces", "posteriors", "fit", "qqs"]
+
+# DMR VARIABLES
+DMR = config["dmr_analysis"]
+ANNO = config["genome_build"]
+MIN_P = config["min_pvalue"]
+WIN_SZ = config["window_size"]
+REGION_FILTER = config["region_filter"]
 
 # Stratified EWAS
 GROUPS = generate_observed_combinations(df=pd.read_csv(config["pheno"]), stratify_cols=config["stratify_variables"])
@@ -34,6 +42,21 @@ strat_bacon_results = expand(OUT_DIR + "{group}/{group}_" + ASSOC + "_ewas_bacon
 strat_bacon_plots = expand(OUT_DIR + "{group}/bacon_plots/{group}_" + ASSOC + "_{plot}.jpg", group=GROUPS, plot=PLOTS)
 meta_analysis_results = OUT_DIR + ASSOC + "_ewas_meta_analysis_results_1.txt"
 
+# DMR outputs
+results_bed = OUT_DIR + ASSOC + "_ewas_results.bed"
+dmr_acf = OUT_DIR + ASSOC + "_ewas.acf.txt"
+dmr_anno = OUT_DIR + ASSOC + "_ewas.anno." + ANNO + ".bed"
+dmr_args = OUT_DIR + ASSOC + "_ewas.args.txt"
+dmr_fdr = OUT_DIR + ASSOC + "_ewas.fdr.bed.gz"
+dmr_manh = OUT_DIR + ASSOC + "_ewas_manhattan.png"
+dmr_regions = OUT_DIR + ASSOC + "_ewas.regions.bed.gz"
+dmr_regions_p = OUT_DIR + ASSOC + "_ewas.regions-p.bed.gz"
+dmr_regions_t = OUT_DIR + ASSOC + "_ewas.regions-t.bed"
+dmr_slk = OUT_DIR + ASSOC + "_ewas.slk.bed.gz"
+
+dmr_files = [results_bed, dmr_acf, dmr_anno, dmr_args, dmr_fdr, dmr_manh,
+            dmr_regions, dmr_regions_p, dmr_regions_t, dmr_slk]
+
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if STRATIFIED == "yes":
     in_files = [PHENO, MVALS, strat_raw_results, strat_bacon_results,
@@ -43,6 +66,11 @@ else:
     in_files = [PHENO, MVALS, raw_results, bacon_results, 
                 bacon_plots, annotated_results, 
                 manhattan_qq_plot]
+
+if DMR == "yes":
+    in_files = in_files + dmr_files
+else:
+    in_files = in_files
 
 #---- BEGIN WORKFLOW ----#
 rule all:
@@ -54,3 +82,4 @@ include: "rules/combined_ewas.smk"
 include: "rules/stratified_ewas.smk"
 include: "rules/annotate.smk"
 include: "rules/plots.smk"
+include: "rules/dmr.smk"
