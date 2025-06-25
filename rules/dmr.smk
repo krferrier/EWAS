@@ -11,12 +11,12 @@ rule make_bed:
     conda:
         "../envs/dmr.yaml"
     shell:
-        f"""
-        Rscript {{input.script}} \
-        --results {{input.in_file}} \
-        --out-dir {{params.o_dir}} \
-        --stratified {{params.strat}} \
-        --assoc {{params.assoc}} 
+        """
+        Rscript {input.script} \
+        --results {input.in_file} \
+        --out-dir {params.o_dir} \
+        --stratified {params.strat} \
+        --assoc {params.assoc} 
         """
 
 rule run_dmr:
@@ -33,12 +33,12 @@ rule run_dmr:
     conda:
         "../envs/dmr.yaml"
     shell:
-        f"""
+        """
         comb-p pipeline \
-		--seed {{params.min_p}} \
-		--dist {{params.win_sz}} \
-		-p {{params.o_prefix}} \
-		--region-filter-p {{params.region_filter}} \
-		--anno {{params.anno}} \
-		{{input.in_file}} 
+		--seed {params.min_p} \
+		--dist {params.win_sz} \
+		-p {params.o_prefix} \
+		--region-filter-p {params.region_filter} \
+		--anno {params.anno} \
+		{input.in_file} 
         """

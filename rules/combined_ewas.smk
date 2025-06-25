@@ -16,18 +16,18 @@ rule run_combined_ewas:
     conda:
         "../envs/ewas.yaml"
     shell:
-        f"""
+        """
         export R_PROGRESSR_ENABLE=TRUE 
-        Rscript {{input.script}} \
-        --pheno {{input.pheno_file}} \
-        --methyl {{input.methyl_file}} \
-        --assoc {{params.assoc_var}} \
-        --stratified {{params.stratified}} \
-        --chunk-size {{params.cs}} \
-        --processing-type {{params.pt}} \
-        --workers {{params.n_workers}} \
-        --out-dir {{params.o_dir}} \
-        --out-type {{params.o_type}}
+        Rscript {input.script} \
+        --pheno {input.pheno_file} \
+        --methyl {input.methyl_file} \
+        --assoc {params.assoc_var} \
+        --stratified {params.stratified} \
+        --chunk-size {params.cs} \
+        --processing-type {params.pt} \
+        --workers {params.n_workers} \
+        --out-dir {params.o_dir} \
+        --out-type {params.o_type}
         """
 
 
@@ -45,12 +45,12 @@ rule run_bacon:
     conda:
         "../envs/ewas.yaml"
     shell:
-        f"""
-        Rscript {{input.script}} \
-        --input-file {{input.in_file}} \
-        --out-dir {{params.o_dir}} \
-        --out-prefix {{params.o_prefix}} \
-        --out-type {{params.o_type}} \
+        """
+        Rscript {input.script} \
+        --input-file {input.in_file} \
+        --out-dir {params.o_dir} \
+        --out-prefix {params.o_prefix} \
+        --out-type {params.o_type} \
         """
     
     
