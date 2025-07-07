@@ -13,13 +13,13 @@ rule stratify_data:
     conda:
         "../envs/ewas.yaml"    
     shell:
-        f"""
-        Rscript {{input.script}} \
-        --pheno {{input.pheno_file}} \
-        --methyl {{input.methyl_file}} \
-        --stratify {{params.strat_vars}} \
-        --out-dir {{params.o_dir}} \
-        --threads {{params.n_threads}}
+        """
+        Rscript {input.script} \
+        --pheno {input.pheno_file} \
+        --methyl {input.methyl_file} \
+        --stratify {params.strat_vars} \
+        --out-dir {params.o_dir} \
+        --threads {params.n_threads}
         """
 
 
@@ -47,20 +47,20 @@ for group in GROUPS:
         conda:
             "../envs/ewas.yaml"
         shell:
-            f"""
+            """
             export R_PROGRESSR_ENABLE=TRUE 
-            Rscript {{input.script}} \
-            --pheno {{input.pheno_file}} \
-            --methyl {{input.methyl_file}} \
-            --assoc {{params.assoc_var}} \
-            --stratified {{params.stratified}} \
-            --chunk-size {{params.cs}} \
-            --processing-type {{params.pt}} \
-            --workers {{params.n_workers}} \
-            --out-dir {{params.o_dir}} \
-            --out-type {{params.o_type}} \
-            --out-prefix {{params.o_prefix}} \
-            > {{log}} 2>&1
+            Rscript {input.script} \
+            --pheno {input.pheno_file} \
+            --methyl {input.methyl_file} \
+            --assoc {params.assoc_var} \
+            --stratified {params.stratified} \
+            --chunk-size {params.cs} \
+            --processing-type {params.pt} \
+            --workers {params.n_workers} \
+            --out-dir {params.o_dir} \
+            --out-type {params.o_type} \
+            --out-prefix {params.o_prefix} \
+            > {log} 2>&1
             """
     rule:
         name:
@@ -78,12 +78,12 @@ for group in GROUPS:
         conda:
             "../envs/ewas.yaml"
         shell:
-            f"""
-            Rscript {{input.script}} \
-            --input-file {{input.in_file}} \
-            --out-dir {{params.o_dir}} \
-            --out-prefix {{params.o_prefix}} \
-            --out-type {{params.o_type}} \
+            """
+            Rscript {input.script} \
+            --input-file {input.in_file} \
+            --out-dir {params.o_dir} \
+            --out-prefix {params.o_prefix} \
+            --out-type {params.o_type} \
             """
 
 rule make_metal_script:
@@ -95,7 +95,7 @@ rule make_metal_script:
     output:
         "scripts/meta_analysis_script.sh"
     shell:
-        f"sh {{input.script}} {{input.in_files}} {{params.out_prefix}}"
+        "sh {input.script} {input.in_files} {params.out_prefix}"
     
 
 rule run_metal:
@@ -106,4 +106,4 @@ rule run_metal:
     singularity:
         "library://krferrier/metal/meta_analysis:metal"
     shell: 
-        f"metal {{input.script}}"
+        "metal {input.script}"

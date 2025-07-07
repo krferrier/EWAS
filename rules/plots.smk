@@ -11,10 +11,10 @@ rule plot_results:
     conda:
         "../envs/ewas.yaml"
     shell:
-        f"""
-        Rscript {{input.script}} \
-        --input-file {{input.in_file}} \
-        --out-dir {{params.o_dir}} \
-        --stratified {{params.strat}} \
-        --assoc {{params.assoc}} 
+        """
+        Rscript {input.script} \
+        --input-file {input.in_file} \
+        --out-dir {params.o_dir} \
+        --stratified {params.strat} \
+        --assoc {params.assoc}
         """

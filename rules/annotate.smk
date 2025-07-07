@@ -10,7 +10,7 @@ rule get_annotation_data:
         protected("annotation_files/EPIC_hg38.tsv.gz"),
         protected("annotation_files/EPIC_snp_key.tsv.gz")
     shell:
-        f"""
+        """
         wget https://zhouserver.research.chop.edu/InfiniumAnnotation/20210615/EPIC/EPIC.hg38.manifest.gencode.v36.tsv.gz \
         -O annotation_files/EPIC_hg38.tsv.gz
         wget https://zhouserver.research.chop.edu/InfiniumAnnotation/20180909/EPIC/EPIC.hg38.commonsnp.tsv.gz \
@@ -32,11 +32,11 @@ rule add_annotation:
     conda:
         "../envs/ewas.yaml"
     shell:
-        f"""
-        Rscript {{input.script}} \
-        --input-file {{input.in_file}} \
-        --out-dir {{params.o_dir}} \
-        --stratified {{params.strat}} \
-        --assoc {{params.assoc}} \
-        --out-type {{params.o_type}}
+        """
+        Rscript {input.script} \
+        --input-file {input.in_file} \
+        --out-dir {params.o_dir} \
+        --stratified {params.strat} \
+        --assoc {params.assoc} \
+        --out-type {params.o_type}
         """
