@@ -94,9 +94,9 @@ rule install_metal:
     shell:
         """
       	cd software/metal
-	tar -xzf METAL.tar.gz --strip-components=1
-	sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/cmake_minimum_required(VERSION 3.5...3.27)/' CMakeLists.txt
-	sed -i '/add_executable(metal/a target_include_directories(metal PRIVATE ${{ZLIB_INCLUDE_DIRS}})' metal/CMakeLists.txt
+	    tar -xzf METAL.tar.gz --strip-components=1
+	    sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/cmake_minimum_required(VERSION 3.5...3.27)/' CMakeLists.txt
+	    sed -i '/add_executable(metal/a target_include_directories(metal PRIVATE ${{ZLIB_INCLUDE_DIRS}})' metal/CMakeLists.txt
 
         mkdir -p build
         cd build
