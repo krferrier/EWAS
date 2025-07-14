@@ -1,0 +1,6 @@
+software-deployment-method: conda
+configfile: config.yml
+conda-prefix: ./.snakemake
+cores: 4
+
+rerun-incomplete: true

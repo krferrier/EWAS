@@ -1,0 +1,13 @@
+name: metal-build
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - gcc_linux-64
+  - gxx_linux-64
+  - make
+  - cmake
+  - curl
+  - tar
+  - openssl
+  - zlib

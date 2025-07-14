@@ -1,13 +1,21 @@
 # Input data
 ############################
-mvals: "data/shs_methyl_all.fst"
-pheno: "data/shs_ewas_pheno_smoker.csv"
+mvals: "data/shs_methyl_smokers.fst"
+pheno: "data/shs_ewas_pheno_logNMR.csv"
 
 # EWAS model parameters
 ############################
-association_variable: "b_SmokerStatus" 
-stratified_ewas: "no" # yes or no
-stratify_variables: [] # If yes, list which variable(s) to stratify on
+association_variable: "logNMR"
+stratified_ewas: "yes" # yes or no
+stratify_variables: ["b_Gender"] # If yes, list which variable(s) to stratify on
+
+# Differentially Methylated Region (DMR) Analysis 
+#################################################
+dmr_analysis: "yes" # yes or no
+genome_build: "hg38" # genome build from USCS
+min_pvalue: 1e-04 # P-value threshold for beginning a region
+window_size: 1000 # extend region if another p-value within this distance is found
+region_filter: 0.05 # post-filter reported regions
 
 # Parallelization parameters
 ############################
@@ -17,5 +25,5 @@ workers: 8 # Number of workers per job
 
 # Output parameters
 ############################
-out_directory: "results_smoker/" # Include trailing '/'
+out_directory: "results_logNMR/" # Include trailing '/'
 out_type: ".csv.gz" # .csv or .csv.gz

@@ -3,7 +3,7 @@
 .RData
 .Ruserdata\
 ewas_snakemake.Rproj
-results/
+results*/
 .vscode/
 __pycache__/
 .snakemake
