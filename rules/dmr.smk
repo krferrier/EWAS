@@ -42,3 +42,16 @@ rule run_dmr:
 		--anno {params.anno} \
 		{input.in_file} 
         """
+
+rule annotate_dmr:
+    input:
+        ewas_bed = rules.run_dmr.output,
+        dmr_bed = dmr_anno
+    output:
+        dmr_cpg_anno
+    conda:
+        "../envs/dmr.yaml"
+    shell:
+        """
+        Rscript scripts/dmr_annotation.R {input.dmr_bed} {input.ewas_bed}
+        """
