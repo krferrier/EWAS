@@ -7,7 +7,9 @@ If your main predictor is categorical (with 2 levels), the values must be dummy 
 
 Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
 
-The final results will be annotated with hg38/GRCh38 human genome build information collated by [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation). A manhattan and qq plot of the final results will also be output.
+The final EWAS results will be annotated with hg38/GRCh38 human genome build information collated by [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation). A manhattan and qq plot of the final EWAS results will also be output.
+
+This workflow can also perform differentially methylated region (DMR) analysis using the EWAS summary statistics. The DMR is conducted with the [comb-p](https://github.com/brentp/combined-pvalues) command-line tool. Parameters for performing the DMR can be modified in the config.yaml. 
 
 # Dependencies
 
@@ -15,7 +17,6 @@ The final results will be annotated with hg38/GRCh38 human genome build informat
 
 * Conda/Mamba
 * Snakemake, version >= 9.3.3
-* Singularity (only for stratified EWAS)
 
 # Using this Workflow
 
@@ -45,13 +46,15 @@ Output files will be generated in the 'out_directory' specified in the config fi
 * BACON bias- and inflation-adjusted results (.csv or .csv.gz) and plots (.jpg)
 * final annotated results (.csv or .csv.gz)
 * manhattan and qq plots (.jpg)
+* differentially methylated region results
 
 **Stratified EWAS**:
 
 * raw linear regression results (.csv or .csv.gz) for each stratum
 * BACON bias- and inflation-adjusted results (.csv or .csv.gz) and plots (.jpg) for each stratum
 * final meta-analyzed and annotated results (.csv or .csv.gz)
-* manhattan and qq plots (.jpg)
+* manhattan and qq plots (.jpg)  
+* differentially methylated region results
 
 ### *Parallelization Parameters*
 
@@ -60,6 +63,17 @@ The rule 'ewas' first chunks the methylation dataset into sets of CpGs where the
 The main step of the EWAS utilizes the [BiocParallel](https://bioconductor.org/packages/release/bioc/html/BiocParallel.html) R package to perform the linear regressions in parallel. You can specify the type of parallelization to be performed at this step in the config file. The options include: sequential, multisession (threads), multicore, or cluster. You must also specify the number of workers that you want to be used for the parallelization in the `workers` parameter of the config file. For more details on the different types of parallelization you can reference the BiocParallel documentation.
 
 If you are performing a stratified analysis, you can have each strata processed in parallel using the `-j` parameter in the snakemake command. For resource allocation, keep in mind that each EWAS performed will use the number of workers specified in the config file, so you will need n=(workers x jobs) resources available. For example, if you use multicore parallelization with 2 workers and `-j 2` in the snakemake command, you will need to have 4 cores available to run the analysis.
+
+### *DMR Parameters*
+
+If you do not want DMR results, you can simply change the `dmr_analysis` parameter to "no".
+
+| Parameter | Default value | Description                                                          |
+|-----------|---------------|----------------------------------------------------------------------|
+| genome_build | hg38          | genome build from USCS to use for adding gene annotations to results |
+|min_pvalue | 1e-04         | P-value threshold for beginning a region                             |
+| window_size | 200           | Maximum distance to search for another CpG < min_pvalue              |
+| region_filter | 0.05          | max adjusted region-level p-value to be reported                     |
 
 ## Dry Run & DAG
 
@@ -80,16 +94,10 @@ Examples of DAGs for a standard and stratified EWAS can be found in `data/exampl
 
 Once you have modified the `config.yml` file to match your projects specifications and computational resources you are ready to run the EWAS. The first time you run the pipeline it may take a while to begin as snakemake will need to download the annotation files and build the conda environment for performing the EWAS. These steps will be cached and will not need to be performed again in subsequent runs. 
 
-**Standard (non-stratified) EWAS**:
+**Standard (non-stratified) or Stratified EWAS**:
 
 ```shell
-snakemake -j 1 --use-conda
-```
-
-**Stratified EWAS**:
-
-```shell
-snakemake -j 1 --use-conda --use-singularity
+snakemake -j <n_jobs>
 ```
 
 ## Track Progress
@@ -100,7 +108,7 @@ For a stratified EWAS, once the `run_ewas` step has been reached, a`/log` direct
 
 ```shell
 tail -F log/<stratum>_ewas.log
-``` 
+```
 
 # Interpretation of BACON Performance Plots
 
@@ -145,3 +153,4 @@ QQ plots are a scatterplot of the observed p-values against the expected p-value
 ![Example QQ plot from performing bias- and inflation-adjustment with BACON.](/data/example_plots/qqs_plot.jpg "Example QQ Plot")
 
 Often, the BACON adjustment does not drastically change the observed p-values compared with the unadjusted p-values and it can be difficult to assess visually whether the BACON adjustment 'worked'. The effect of the adjustment can more easily be discerned with a metric often referred to as the 'genomic inflation factor', or lambda (λ), which is a calculation of the deviation of the observed p-values from the expected p-values. A value of 1 indicates no inflation, while values greater than 1 indicate inflation and less than 1 indicate deflation. In general, the BACON adjustment should bring the λ closer to 1. The unadjusted λ ('lambda') and BACON-adjusted ('b-lambda') values can be found in the output results file ending in 'ewas_bacon_results'.
+
