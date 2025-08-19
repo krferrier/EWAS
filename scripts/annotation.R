@@ -50,7 +50,16 @@ cpg.to.rs <- cpg.to.rs %>%
                 snpAlt, GAN, GAC, GAF,distance) %>%
     distinct(probeID, .keep_all = T) %>% 
     dplyr::rename("cpgid" = "probeID")
-annotation <- left_join(hg38, cpg.to.rs, by = "cpgid")
+eqtm <- fread("annotation_files/eQTM_annotations_updated_HGNC_GRCh38.tsv") %>%
+  dplyr::select(SNPName, HGNCName_GRCh38) %>%
+  filter(!is.na(HGNCName_GRCh38)) %>%
+  rename(cpgid = SNPName, BIOS_eQTM_gene = HGNCName_GRCh38) %>%
+  group_by(cpgid) %>%
+  summarize(BIOS_eQTM_genes = paste(unique(BIOS_eQTM_gene), collapse = ";")) %>%
+  ungroup()
+
+annotation <- left_join(hg38, cpg.to.rs, by = "cpgid") %>%
+              left_join(eqtm, by = "cpgid")
 rm(hg38, cpg.to.rs)
 
 if(stratified=="no"){

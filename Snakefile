@@ -49,9 +49,11 @@ dmr_args = OUT_DIR + "dmr/" + ASSOC + "_ewas.args.txt"
 dmr_fdr = OUT_DIR + "dmr/" + ASSOC + "_ewas.fdr.bed.gz"
 dmr_regions = OUT_DIR + "dmr/" + ASSOC + "_ewas.regions.bed.gz"
 dmr_slk = OUT_DIR + "dmr/" +  ASSOC + "_ewas.slk.bed.gz"
+dmr_anno = OUT_DIR + "dmr/" + ASSOC + "_ewas.anno." + ANNO + ".bed"
+dmr_cpg_anno = OUT_DIR + "dmr/" + ASSOC + "_ewas.anno." + ANNO + ".with_cpgs.bed"
 
 dmr_infile = [results_bed]
-dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk]
+dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk, dmr_anno, dmr_cpg_anno]
 
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if STRATIFIED == "yes":

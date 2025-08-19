@@ -44,7 +44,7 @@ res <- fread(results)
 # Wrangle results into BED format (chr, start, end, pvalue)
 if(stratified=="no"){
     res <- res  %>% 
-            dplyr::select(CpG_chrm,CpG_beg,CpG_end, bacon.pval) %>%
+            dplyr::select(CpG_chrm,CpG_beg,CpG_end, bacon.pval, cpgid) %>%
             arrange(CpG_chrm, CpG_beg)  %>% 
             dplyr::rename("#chrom" = "CpG_chrm",
                           "start" = "CpG_beg",
@@ -52,7 +52,7 @@ if(stratified=="no"){
                           "pvals" = "bacon.pval")  
 } else{
     res <- res  %>% 
-        dplyr::select(CpG_chrm,CpG_beg,CpG_end, "P-value")  %>%
+        dplyr::select(CpG_chrm,CpG_beg,CpG_end, "P-value", MarkerName)  %>%
         arrange(CpG_chrm, CpG_beg)  %>% 
         dplyr::rename("#chrom" = "CpG_chrm",
                       "start" = "CpG_beg",
