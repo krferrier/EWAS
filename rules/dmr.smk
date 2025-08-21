@@ -45,7 +45,7 @@ rule run_dmr:
 
 rule annotate_dmr:
     input:
-        ewas_bed = rules.run_dmr.output,
+        ewas_bed = rules.make_bed.output,
         dmr_bed = dmr_anno
     output:
         dmr_cpg_anno
