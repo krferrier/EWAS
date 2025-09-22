@@ -21,7 +21,7 @@ parser$add_argument('--out-dir',
                     default="~/",  
                     help="Path to output directory")     
 parser$add_argument('--stratified',
-                    choices=c("yes", "no"), 
+                    choices=c("yes", "no", "True", "False"),
                     default="no",
                     help="Results from a stratified analysis: yes or no")
 parser$add_argument("--assoc", 
@@ -42,7 +42,7 @@ assoc <- args$assoc
 res <- fread(results)
 
 # Wrangle results into BED format (chr, start, end, pvalue)
-if(stratified=="no"){
+if(stratified=="no" | stratified == "False"){
     res <- res  %>% 
             dplyr::select(CpG_chrm,CpG_beg,CpG_end, bacon.pval, cpgid) %>%
             arrange(CpG_chrm, CpG_beg)  %>% 
@@ -62,6 +62,6 @@ if(stratified=="no"){
 }
 
 # Export BED file
-file_name <- paste0(out_dir, assoc, "_ewas_annotated_results.bed")
+file_name <- paste0(out_dir, "/", assoc, "_ewas_annotated_results.bed")
 write.table(res, file = file_name, append = FALSE, sep = "\t",
              row.names = FALSE, col.names = TRUE, quote = FALSE)

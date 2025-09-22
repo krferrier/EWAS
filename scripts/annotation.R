@@ -14,7 +14,7 @@ parser$add_argument('--out-dir',
                     required=TRUE,
                     help="Path to output directory")
 parser$add_argument('--stratified',
-                    choices=c("yes", "no"), 
+                    choices=c("yes", "no", "True", "False"),
                     default="no",
                     help="Results from a stratified analysis: yes or no")
 parser$add_argument("--assoc", 
@@ -62,7 +62,7 @@ annotation <- left_join(hg38, cpg.to.rs, by = "cpgid") %>%
               left_join(eqtm, by = "cpgid")
 rm(hg38, cpg.to.rs)
 
-if(stratified=="no"){
+if(stratified=="no" | stratified == "False"){
     ewas <- left_join(ewas, annotation, by = "cpgid")
     ewas <- ewas[order(ewas$bacon.pval),]
 } else{
@@ -71,5 +71,5 @@ if(stratified=="no"){
         ewas$"P-value" <- as.numeric(ewas$"P-value")
         ewas <- ewas[order(ewas$"P-value"),]
 }
-file_name <- paste0(out_dir, assoc, "_ewas_annotated_results", out_type)
+file_name <- paste0(out_dir,"/", assoc, "_ewas_annotated_results", out_type)
 fwrite(ewas, file = file_name)

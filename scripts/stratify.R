@@ -97,13 +97,13 @@ for (i in names(subset.key)){
   p.sub <- pheno[[i]]
   p.sub <- p.sub %>%
     rownames_to_column(var="SampleID") # Move the sample IDs to the rownames
-  filename <- paste0(out_dir, i, "/", i, "_pheno.fst")
+  filename <- paste0(out_dir,"/", i, "/", i, "_pheno.fst")
   write_fst(p.sub, path = filename)
 }
 for (i in names(subset.key)){
   m.sub <- mvals[[i]]
   m.sub <- m.sub %>%
     rownames_to_column(var="SampleID")
-  filename <- paste0(out_dir, i, "/", i, "_mvals.fst")
+  filename <- paste0(out_dir,"/", i, "/", i, "_mvals.fst")
   write_fst(m.sub, path = filename) 
 }

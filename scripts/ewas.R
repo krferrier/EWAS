@@ -41,7 +41,7 @@ parser$add_argument("--assoc",
                     nargs=1, 
                     help="Variable to perform association with.")
 parser$add_argument('--stratified',
-                    choices=c("yes", "no"), 
+                    choices=c("yes", "no", "True", "False"),
                     default="no",
                     help="Stratified analysis: yes or no")
 parser$add_argument("--chunk-size", 
@@ -201,10 +201,10 @@ results <- ewas(mvals, pheno)
 
 # Export results 
 results$n <- nrow(pheno)
-if (stratified == "yes"){
-    filename <- paste0(out_dir, out_prefix, "_", assoc_var, "_ewas_results", out_type)
+if (stratified == "yes" | stratified == "True"){
+    filename <- paste0(out_dir,"/", out_prefix, "_", assoc_var, "_ewas_results", out_type)
 } else{
-    filename <- paste0(out_dir, assoc_var, "_ewas_results", out_type)
+    filename <- paste0(out_dir,"/", assoc_var, "_ewas_results", out_type)
 }
 
 fwrite(results, file = filename)

@@ -4,12 +4,12 @@ rule stratify_data:
         pheno_file = PHENO,
         methyl_file = MVALS
     params:
-        strat_vars = ' '.join(STRAT_VARS),
+        strat_vars = ','.join(STRAT_VARS),
         o_dir = OUT_DIR,
         n_threads = N_WORKERS
     output: 
-        temp(expand(OUT_DIR + "{group}/{group}_pheno.fst", group = GROUPS)),
-        temp(expand(OUT_DIR + "{group}/{group}_mvals.fst", group = GROUPS))
+        temp(expand(OUT_DIR + "/{group}/{group}_pheno.fst", group = GROUPS)),
+        temp(expand(OUT_DIR + "/{group}/{group}_mvals.fst", group = GROUPS))
     conda:
         "../envs/ewas.yaml"    
     shell:
@@ -22,69 +22,66 @@ rule stratify_data:
         --threads {params.n_threads}
         """
 
-
-for group in GROUPS:
-    rule:
-        name:
-            f"run_ewas_{group}"
-        input:
-            script = "scripts/ewas.R",
-            pheno_file = OUT_DIR + f"{group}/{group}_pheno.fst",
-            methyl_file= OUT_DIR + f"{group}/{group}_mvals.fst"
-        params:
-            assoc_var = ASSOC,
-            stratified = STRATIFIED,
-            cs = config["chunk_size"],
-            pt = config["processing_type"],
-            n_workers = N_WORKERS,
-            o_dir = OUT_DIR + f"{group}/",
-            o_type = OUT_TYPE,
-            o_prefix = f"{group}"
-        output: 
-            OUT_DIR + f"{group}/{group}_" + ASSOC + "_ewas_results" + OUT_TYPE
-        log:
-            f"log/{group}_ewas.log"
-        conda:
-            "../envs/ewas.yaml"
-        shell:
-            """
-            export R_PROGRESSR_ENABLE=TRUE 
-            Rscript {input.script} \
-            --pheno {input.pheno_file} \
-            --methyl {input.methyl_file} \
-            --assoc {params.assoc_var} \
-            --stratified {params.stratified} \
-            --chunk-size {params.cs} \
-            --processing-type {params.pt} \
-            --workers {params.n_workers} \
-            --out-dir {params.o_dir} \
-            --out-type {params.o_type} \
-            --out-prefix {params.o_prefix} \
-            > {log} 2>&1
-            """
-    rule:
-        name:
-            f"run_bacon_{group}"
-        input:
-            in_file = OUT_DIR + f"{group}/{group}_" + ASSOC + "_ewas_results" + OUT_TYPE,
-            script = "scripts/run_bacon.R"
-        params:
-            o_dir = OUT_DIR + f"{group}/",
-            o_type = OUT_TYPE,
-            o_prefix = f"{group}"
-        output: 
-            OUT_DIR + f"{group}/{group}_" + ASSOC + "_ewas_bacon_results" + OUT_TYPE,
-            expand(OUT_DIR + f"{group}/bacon_plots/{group}_" + ASSOC + "_{plot}.jpg", plot = PLOTS)
-        conda:
-            "../envs/ewas.yaml"
-        shell:
-            """
-            Rscript {input.script} \
-            --input-file {input.in_file} \
-            --out-dir {params.o_dir} \
-            --out-prefix {params.o_prefix} \
-            --out-type {params.o_type} \
-            """
+rule run_ewas_group:
+    input:
+        script = "scripts/ewas.R",
+        pheno_file = OUT_DIR + "/{group}/{group}_pheno.fst",
+        methyl_file= OUT_DIR + "/{group}/{group}_mvals.fst"
+    params:
+        assoc_var = ASSOC,
+        stratified = STRATIFIED,
+        cs = config["chunk_size"],
+        pt = config["processing_type"],
+        n_workers = N_WORKERS,
+        o_dir = OUT_DIR + "/{group}/",
+        o_type = OUT_TYPE,
+        o_prefix = "{group}"
+    output:
+        OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_results" + OUT_TYPE
+    log:
+        "log/{group}_ewas.log"
+    conda:
+        "../envs/ewas.yaml"
+    shell:
+        """
+        export R_PROGRESSR_ENABLE=TRUE 
+        Rscript {input.script} \
+        --pheno {input.pheno_file} \
+        --methyl {input.methyl_file} \
+        --assoc {params.assoc_var} \
+        --stratified {params.stratified} \
+        --chunk-size {params.cs} \
+        --processing-type {params.pt} \
+        --workers {params.n_workers} \
+        --out-dir {params.o_dir} \
+        --out-type {params.o_type} \
+        --out-prefix {params.o_prefix} \
+        > {log} 2>&1
+        """
+rule run_bacon_group:
+    input:
+        in_file = OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_results" + OUT_TYPE,
+        script = "scripts/run_bacon.R"
+    params:
+        o_dir = OUT_DIR + "/{group}/",
+        o_type = OUT_TYPE,
+        o_prefix = "{group}"
+    output:
+        bacon_results = OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_bacon_results" + OUT_TYPE,
+        plot_trace= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_traces.jpg",
+        plot_post= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_posteriors.jpg",
+        plot_fit= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_fit.jpg",
+        plot_qqs= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_qqs.jpg"
+    conda:
+        "../envs/ewas.yaml"
+    shell:
+        """
+        Rscript {input.script} \
+        --input-file {input.in_file} \
+        --out-dir {params.o_dir} \
+        --out-prefix {params.o_prefix} \
+        --out-type {params.o_type} \
+        """
 
 rule install_metal:
     output:
@@ -118,9 +115,9 @@ rule install_metal:
 rule make_metal_script:
     input:
         script = "scripts/metal_cmd.sh",
-        in_files = expand(OUT_DIR + "{group}/{group}_" + ASSOC + "_ewas_bacon_results" + OUT_TYPE, group=GROUPS)
+        in_files = expand(OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_bacon_results" + OUT_TYPE, group=GROUPS)
     params:
-        out_prefix = OUT_DIR + ASSOC + "_ewas_meta_analysis_results_"
+        out_prefix = OUT_DIR + "/" + ASSOC + "_ewas_meta_analysis_results_"
     output:
         "scripts/meta_analysis_script.sh"
     shell:
@@ -130,6 +127,7 @@ rule make_metal_script:
 rule run_metal:
     input:
         metal = rules.install_metal.output.metal_bin,
+        bacon_group_results = expand(rules.run_bacon_group.output.bacon_results, group = GROUPS),
         script = "scripts/meta_analysis_script.sh"
     output:
         meta_analysis_results

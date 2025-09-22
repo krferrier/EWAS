@@ -8,7 +8,7 @@ if (length(args) < 2) {
 dmr_file  <- args[1]
 cpg_file  <- args[2]
 out_file  <- sub("(\\.bed)?$", ".with_cpgs.bed", dmr_file)
-
+print(out_file)
 
 # Read DMR annotation bed file output from comb-p
 dmr <- fread(dmr_file, sep = "\t", header = TRUE)

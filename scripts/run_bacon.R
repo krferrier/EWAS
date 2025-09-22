@@ -93,21 +93,21 @@ ewas$lambda <- QCEWAS::P_lambda(ewas$p.value)
 ewas$b.lambda <- QCEWAS::P_lambda(ewas$bacon.pval)
 
 # Export bacon-adjusted results
-fwrite(ewas, file=paste0(out_dir, filename, "_ewas_bacon_results", out_type))
+fwrite(ewas, file=paste0(out_dir, "/", filename, "_ewas_bacon_results", out_type))
 
 # Run performance tests and export plots
 traces_plot <- ggtraces(bc) #+ labs(title = paste0(plotname, " traces"))
-ggsave(paste0(out_dir, "bacon_plots/", filename, "_traces.jpg"),
+ggsave(paste0(out_dir, "/bacon_plots/", filename, "_traces.jpg"),
        plot = traces_plot,
        width = 16, height = 9.8, units = "cm")
 
 posteriors_plot <- ggposteriors(bc) #+ labs(title = paste0(plotname, " posteriors"))
-ggsave(paste0(out_dir, "bacon_plots/", filename, "_posteriors.jpg"),
+ggsave(paste0(out_dir, "/bacon_plots/", filename, "_posteriors.jpg"),
        plot = posteriors_plot,
        width = 10.5, height = 9.8, units = "cm")
 
 fit_plot <- ggfit(bc) #+ labs(title = paste0(plotname, " fit"))
-ggsave(paste0(out_dir, "bacon_plots/", filename, "_fit.jpg"),
+ggsave(paste0(out_dir, "/bacon_plots/", filename, "_fit.jpg"),
        plot = fit_plot,
        width = 12, height = 9.8, units = "cm")
 
@@ -115,7 +115,7 @@ qq_plot <- bacon::plot(bc, type = c("qq")) +
        labs(title = paste0(plotname, " qq plots")) +
        theme_bw(base_size = 12) +
        theme(legend.position = "none")
-ggsave(paste0(out_dir, "bacon_plots/", filename, "_qqs.jpg"),
+ggsave(paste0(out_dir, "/bacon_plots/", filename, "_qqs.jpg"),
        plot = qq_plot,
        width = 12, height = 9.8, units = "cm")
 
