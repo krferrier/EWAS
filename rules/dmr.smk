@@ -23,11 +23,11 @@ rule run_dmr:
     input:
         in_file = results_bed
     params:
-        o_prefix = OUT_DIR +  "dmr/" + ASSOC + "_ewas",
-        min_p = MIN_P,
-        win_sz = WIN_SZ,
-        region_filter = REGION_FILTER,
-        anno = ANNO
+        o_prefix = OUT_DIR +  "/dmr/" + ASSOC + "_ewas",
+        min_p = CW.min_pval,
+        win_sz = CW.win_size,
+        region_filter = CW.region_filter,
+        anno = CW.genome_build
     output: 
         dmr_outfiles
     conda:

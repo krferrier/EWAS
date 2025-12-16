@@ -16,7 +16,7 @@ parser$add_argument('--out-dir',
                     required=TRUE,
                     help="Path to output directory")
 parser$add_argument('--stratified',
-                    choices=c("yes", "no"), 
+                    choices=c("yes", "no", "True", "False"),
                     default="no",
                     help="Results from a stratified analysis: yes or no")
 parser$add_argument("--assoc", 
@@ -37,7 +37,7 @@ assoc <- args$assoc
 ewas <- fread(results)
 
 # Wrangle data for plotting
-if (stratified == "yes"){
+if (stratified == "yes" | stratified == "True"){
   ewas <- ewas %>% 
     dplyr::select(MarkerName, CpG_chrm, CpG_beg, "P-value") %>% 
     rename("Pvalue" = "P-value") %>% 
@@ -140,7 +140,7 @@ left.panel <- plot_grid(NULL, qq.plot, labels= c("B", ""), label_size = 22,
 full.plot <- plot_grid(manh.plot, left.panel, labels = c("A", ""), ncol = 2,
           rel_widths = c(2.5,1), label_size = 22)
 
-filename <- paste0(out_dir, assoc, "_ewas_manhattan_qq_plots.jpg")
+filename <- paste0(out_dir, "/", assoc, "_ewas_manhattan_qq_plots.jpg")
 ggsave(filename,
       plot = full.plot,
       width = 32,
