@@ -47,7 +47,7 @@ dmr_cpg_anno = [str(CW.dmr_cpg_anno)]
 
 dmr_infile = [results_bed]
 dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk, dmr_anno]
-
+dmr_anno_file = [dmr_cpg_anno]
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if STRATIFIED == True:
     in_files = [PHENO, MVALS, strat_raw_results, strat_bacon_results,
@@ -58,8 +58,8 @@ else:
                 bacon_plots, annotated_results, 
                 manhattan_qq_plot]
 
-if CW.dmr == True:
-    in_files = in_files + dmr_infile + dmr_outfiles + dmr_cpg_anno
+if DMR == "yes":
+    in_files = in_files + dmr_infile + dmr_outfiles + dmr_anno_file
 else:
     in_files = in_files
 
