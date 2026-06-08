@@ -93,7 +93,7 @@ rule fetch_dmr_annotation_cache:
         # refGene fields:
         # 1 bin, 2 transcript/name, 3 chrom, 4 strand, 5 txStart, 6 txEnd, ... 13 name2/gene symbol
         zcat {output.refgene_txt} \
-          | awk 'BEGIN{{OFS="\t"}} {{print $3,$5,$6,$13,$2,$4}}' \
+          | awk 'BEGIN{{FS=OFS="\t"}} {{print $3,$5,$6,$13,$2,$4}}' \
           | sort -k1,1 -k2,2n \
           | gzip -c > {output.refgene_bed}.tmp
         mv {output.refgene_bed}.tmp {output.refgene_bed}
@@ -101,7 +101,7 @@ rule fetch_dmr_annotation_cache:
         # cpgIslandExt fields:
         # 1 bin, 2 chrom, 3 chromStart, 4 chromEnd, 5 name, ...
         zcat {output.cpg_txt} \
-          | awk 'BEGIN{{OFS="\t"}} {{print $2,$3,$4,$5}}' \
+          | awk 'BEGIN{{FS=OFS="\t"}} {{print $2,$3,$4,$5}}' \
           | sort -k1,1 -k2,2n \
           | gzip -c > {output.cpg_bed}.tmp
         mv {output.cpg_bed}.tmp {output.cpg_bed}
