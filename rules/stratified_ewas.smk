@@ -85,7 +85,7 @@ rule run_bacon_group:
 
 rule install_metal:
     output:
-        metal_bin = protected("software/metal/build/bin/metal")
+        metal_bin = "software/metal/build/bin/metal"
     conda:
         "../envs/metal-build.yaml"
     shell:
