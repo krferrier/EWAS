@@ -52,10 +52,8 @@ rule fetch_dmr_annotation_cache:
         refgene_txt = dmr_refgene_txt,
         cpg_txt = dmr_cpg_island_txt,
         hgnc_bb = dmr_hgnc_bb,
-        hgnc_complete = dmr_hgnc_complete_set,
         refgene_bed = dmr_refgene_bed,
         cpg_bed = dmr_cpg_island_bed,
-        hgnc_raw_bed = dmr_hgnc_raw_bed,
         hgnc_bed = dmr_hgnc_bed,
         manifest = dmr_annotation_manifest
     params:
@@ -63,7 +61,6 @@ rule fetch_dmr_annotation_cache:
         gene_table = CW.gene_table,
         ucsc_database_base = CW.ucsc_database_base,
         ucsc_gbdb_base = CW.ucsc_gbdb_base,
-        hgnc_complete_set_url = CW.hgnc_complete_set_url,
         cache_tag = CW.dmr_anno_cache_tag
     conda:
         "../envs/dmr_annotation.yaml"
@@ -86,10 +83,6 @@ rule fetch_dmr_annotation_cache:
           {params.ucsc_gbdb_base}/{params.genome}/hgnc/hgnc.bb
         mv {output.hgnc_bb}.tmp {output.hgnc_bb}
 
-        wget -O {output.hgnc_complete}.tmp \
-          {params.hgnc_complete_set_url}
-        mv {output.hgnc_complete}.tmp {output.hgnc_complete}
-
         # refGene fields:
         # 1 bin, 2 transcript/name, 3 chrom, 4 strand, 5 txStart, 6 txEnd, ... 13 name2/gene symbol
         zcat {output.refgene_txt} \
@@ -106,65 +99,84 @@ rule fetch_dmr_annotation_cache:
           | gzip -c > {output.cpg_bed}.tmp
         mv {output.cpg_bed}.tmp {output.cpg_bed}
 
-        tmp_hgnc_raw=$(mktemp)
-        bigBedToBed {output.hgnc_bb} "$tmp_hgnc_raw"
-        sort -k1,1 -k2,2n "$tmp_hgnc_raw" | gzip -c > {output.hgnc_raw_bed}.tmp
-        mv {output.hgnc_raw_bed}.tmp {output.hgnc_raw_bed}
-        rm -f "$tmp_hgnc_raw"
-
-        tmp_hgnc_approved=$(mktemp --suffix=.bed.gz)
-
-        python scripts/make_hgnc_bed_from_ucsc.py \
-          --ucsc-hgnc-bed {output.hgnc_raw_bed} \
-          --hgnc-complete-set {output.hgnc_complete} \
-          --out "$tmp_hgnc_approved"
-
-        mv "$tmp_hgnc_approved" {output.hgnc_bed}
+        # UCSC HGNC BigBed fields:
+        # 1 chrom, 2 chromStart, 3 chromEnd, 4 HGNC ID,
+        # 10 symbol, 11 geneName, 12 locus_group, 13 locus_type
+        bigBedToBed {output.hgnc_bb} stdout \
+          | awk 'BEGIN{{FS=OFS="\t"}} NF >= 14 {{print $1,$2,$3,$10,$4,$11,$12,$13}}' \
+          | sort -k1,1 -k2,2n \
+          | gzip -c > {output.hgnc_bed}.tmp
+        mv {output.hgnc_bed}.tmp {output.hgnc_bed}
 
         {{
           echo -e "resource\tgenome_build\tcache_tag\tsource\tcreated"
           echo -e "{params.gene_table}\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/{params.gene_table}.txt.gz\t$(date -Iseconds)"
           echo -e "cpgIslandExt\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz\t$(date -Iseconds)"
           echo -e "hgnc_bigbed\t{params.genome}\t{params.cache_tag}\t{params.ucsc_gbdb_base}/{params.genome}/hgnc/hgnc.bb\t$(date -Iseconds)"
-          echo -e "hgnc_complete_set\tNA\t{params.cache_tag}\t{params.hgnc_complete_set_url}\t$(date -Iseconds)"
         }} > {output.manifest}
         """
 
-rule annotate_dmr_regions_local:
+#rule annotate_dmr_regions_local:
+#    input:
+#        regions = rules.run_dmr.output.regions,
+#        hgnc = rules.fetch_dmr_annotation_cache.output.hgnc_bed,
+#        refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
+#        cpg = rules.fetch_dmr_annotation_cache.output.cpg_bed,
+#        manifest = rules.fetch_dmr_annotation_cache.output.manifest
+#    output:
+#        annotated = dmr_anno
+#    conda:
+#        "../envs/dmr_annotation.yaml"
+#    shell:
+#        r"""
+#        set -euo pipefail
+#
+#        python scripts/annotate_dmrs_local.py \
+#          --regions {input.regions} \
+#          --hgnc-bed {input.hgnc} \
+#          --refgene-bed {input.refgene} \
+#          --cpg-bed {input.cpg} \
+#          --manifest {input.manifest} \
+#          --out {output.annotated}
+#
+#        test -s {output.annotated}
+#        """
+
+#rule annotate_dmr:
+#    input:
+#        ewas_bed = rules.make_bed.output,
+#        dmr_bed = rules.annotate_dmr_regions_local.output.annotated
+#    output:
+#        dmr_cpg_anno
+#    conda:
+#        "../envs/dmr.yaml"
+#    shell:
+#        """
+#        Rscript scripts/dmr_annotation.R {input.dmr_bed} {input.ewas_bed}
+#        """
+
+rule annotate_dmrs:
     input:
-        regions = rules.run_dmr.output.regions,
+        dmr_regions = rules.run_dmr.output.regions,
+        ewas_bed = rules.make_bed.output,
         hgnc = rules.fetch_dmr_annotation_cache.output.hgnc_bed,
         refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
-        cpg = rules.fetch_dmr_annotation_cache.output.cpg_bed,
-        manifest = rules.fetch_dmr_annotation_cache.output.manifest
+        cpgIslandExt = rules.fetch_dmr_annotation_cache.output.cpg_bed
+    params:
+        o_prefix = OUT_DIR +  "/dmr",
+        assoc = ASSOC
     output:
-        annotated = dmr_anno
-    conda:
-        "../envs/dmr_annotation.yaml"
-    shell:
-        r"""
-        set -euo pipefail
-
-        python scripts/annotate_dmrs_local.py \
-          --regions {input.regions} \
-          --hgnc-bed {input.hgnc} \
-          --refgene-bed {input.refgene} \
-          --cpg-bed {input.cpg} \
-          --manifest {input.manifest} \
-          --out {output.annotated}
-
-        test -s {output.annotated}
-        """
-
-rule annotate_dmr:
-    input:
-        ewas_bed = rules.make_bed.output,
-        dmr_bed = rules.annotate_dmr_regions_local.output.annotated
-    output:
-        dmr_cpg_anno
+        dmr_anno_final
     conda:
         "../envs/dmr.yaml"
     shell:
         """
-        Rscript scripts/dmr_annotation.R {input.dmr_bed} {input.ewas_bed}
+        Rscript scripts/dmr_annotation_2.R \
+            --dmr-regions {input.dmr_regions} \
+            --ewas-bed {input.ewas_bed} \
+            --hgnc {input.hgnc} \
+            --refgene {input.refgene} \
+            --cpgIslandExt {input.cpgIslandExt} \
+            --out-dir {params.o_prefix} \
+            --assoc {params.assoc}
         """

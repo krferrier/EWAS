@@ -4,11 +4,3 @@ conda-prefix: ./.snakemake
 cores: 4
 
 rerun-incomplete: true
-
-        python scripts/annotate_dmrs_local.py \                                                                                                                                                                         
-          --regions results_test/dmr/BMI_ewas.regions.bed.gz \                                                                                                                                                          
-          --hgnc-bed resources/ucsc/hg38/latest/hgnc.approved.bed.gz \                                                                                                                                                  
-          --refgene-bed resources/ucsc/hg38/latest/refGene.bed.gz \                                                                                                                                                     
-          --cpg-bed resources/ucsc/hg38/latest/cpgIslandExt.bed.gz \                                                                                                                                                    
-          --manifest resources/ucsc/hg38/latest/annotation_manifest.tsv \                                                                                                                                               
-          --out results_test/dmr/BMI_ewas.anno.hg38.bed

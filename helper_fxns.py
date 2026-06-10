@@ -238,6 +238,10 @@ class ConfigWizard(object):
     def dmr_cpg_anno(self):
         return self._out("dmr", f"{self._prefix()}_ewas.anno.{self.genome_build}.with_cpgs.bed")
 
+    @property
+    def dmr_anno_final(self) -> Path:
+        return self._out("dmr", f"{self._prefix()}_dmr_annotated_results.tsv")
+
     # ---------- Local DMR annotation-cache resources ----------
     @property
     def dmr_anno_resource_dir(self) -> Path:
@@ -273,7 +277,7 @@ class ConfigWizard(object):
 
     @property
     def dmr_hgnc_bed(self) -> Path:
-        return self.dmr_anno_resource_dir.joinpath("hgnc.approved.bed.gz")
+        return self.dmr_anno_resource_dir.joinpath("hgnc.bed.gz")
 
     @property
     def dmr_annotation_manifest(self) -> Path:
