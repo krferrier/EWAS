@@ -31,7 +31,11 @@ dependencies:
   - r-r.utils
   - r-cowplot
   - r-ggplot2
-
+  - r-data.table
+  - r-dplyr
+  - r-jsonlite
+  - r-scales
+  - r-svglite
 
 
 

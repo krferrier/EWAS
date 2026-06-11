@@ -25,7 +25,8 @@ class ConfigWizard(object):
         "config", "mvals", "pheno", "assoc_var", "stratified", "strat_vars",
         "dmr", "genome_build", "min_pval", "win_size", "region_filter",
         "chunk_size", "processing_type", "n_workers", "out_dir", "out_type",
-        "_groups", "_bacon_plot_kinds"
+        "_groups", "_bacon_plot_kinds", "dmr_anno_cache_dir", "dmr_anno_cache_tag",
+        "gene_table", "ucsc_database_base", "ucsc_gbdb_base"
     )
 
     def __init__(self, cfg: Dict):
@@ -63,6 +64,32 @@ class ConfigWizard(object):
         # Ensure the output directory is a Path, and does NOT need a trailing slash
         self.out_dir: Path = _norm_path(cfg["out_directory"])
         self.out_type: str = str(cfg["out_type"])  # e.g. ".csv" or ".csv.gz"
+
+        # Optional DMR annotation-cache settings
+        anno_cfg = cfg.get("dmr_annotation", {}) or {}
+
+        self.dmr_anno_cache_dir: Path = _norm_path(
+            anno_cfg.get("cache_dir", cfg.get("dmr_anno_cache_dir", "resources/ucsc"))
+        )
+        self.dmr_anno_cache_tag: str = str(
+            anno_cfg.get("cache_tag", cfg.get("dmr_anno_cache_tag", "latest"))
+        )
+        self.gene_table: str = str(
+            anno_cfg.get("gene_table", cfg.get("gene_table", "refGene"))
+        )
+        self.ucsc_database_base: str = str(
+            anno_cfg.get(
+                "ucsc_database_base",
+                cfg.get("ucsc_database_base", "https://hgdownload.soe.ucsc.edu/goldenPath"),
+            )
+        ).rstrip("/")
+        self.ucsc_gbdb_base: str = str(
+            anno_cfg.get(
+                "ucsc_gbdb_base",
+                cfg.get("ucsc_gbdb_base", "https://hgdownload.soe.ucsc.edu/gbdb"),
+            )
+        ).rstrip("/")
+
 
         # Keep plot kinds centralized
         self._bacon_plot_kinds: List[str] = ["traces", "posteriors", "fit", "qqs"]
@@ -168,7 +195,7 @@ class ConfigWizard(object):
             )
         return files
 
-    # ---------- DMR outputs (names lifted from your Snakefile snippet) ----------
+    # ---------- DMR outputs ----------
     @property
     def dmr_results_bed(self) -> Path:
         return self._out(f"{self._prefix()}_ewas_annotated_results.bed")
@@ -188,17 +215,49 @@ class ConfigWizard(object):
 
     @property
     def dmr_regions(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.regions.bed.gz")
+        return self._out("dmr", f"{self._prefix()}_ewas.regions-p.bed.gz")
 
     @property
     def dmr_slk(self) -> Path:
         return self._out("dmr", f"{self._prefix()}_ewas.slk.bed.gz")
 
     @property
-    def dmr_anno(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.anno.{self.genome_build}.bed")
+    def dmr_anno_final(self) -> Path:
+        return self._out("dmr", f"{self._prefix()}_dmr_annotated_results.tsv")
+
+    # ---------- Local DMR annotation-cache resources ----------
+    @property
+    def dmr_anno_resource_dir(self) -> Path:
+        return self.dmr_anno_cache_dir.joinpath(self.genome_build, self.dmr_anno_cache_tag)
 
     @property
-    def dmr_cpg_anno(self):
-        return self._out("dmr", f"{self._prefix()}_ewas.anno.{self.genome_build}.with_cpgs.bed")
+    def dmr_refgene_txt(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath(f"{self.gene_table}.txt.gz")
 
+    @property
+    def dmr_cpg_island_txt(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath("cpgIslandExt.txt.gz")
+
+    @property
+    def dmr_hgnc_bb(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath("hgnc.bb")
+
+    @property
+    def dmr_refgene_bed(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath(f"{self.gene_table}.bed.gz")
+
+    @property
+    def dmr_cpg_island_bed(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath("cpgIslandExt.bed.gz")
+
+    @property
+    def dmr_hgnc_bed(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath("hgnc.bed.gz")
+
+    @property
+    def dmr_annotation_manifest(self) -> Path:
+        return self.dmr_anno_resource_dir.joinpath("annotation_manifest.tsv")
+
+    @property
+    def dmr_manhattan_plot(self) -> Path:
+        return self._out("dmr", f"{self._prefix()}_dmr_manhattan.jpg")

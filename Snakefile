@@ -10,6 +10,7 @@ MVALS = str(CW.mvals)
 ASSOC = CW.assoc_var
 STRATIFIED = CW.stratified
 STRAT_VARS = CW.strat_vars
+DMR = CW.dmr
 CHUNK_SIZE = CW.chunk_size
 PROCESSING_TYPE = CW.processing_type
 N_WORKERS = CW.n_workers
@@ -42,14 +43,23 @@ dmr_args    = str(CW.dmr_args)
 dmr_fdr     = str(CW.dmr_fdr)
 dmr_regions = str(CW.dmr_regions)
 dmr_slk = str(CW.dmr_slk)
-dmr_anno = str(CW.dmr_anno)
-dmr_cpg_anno = [str(CW.dmr_cpg_anno)]
+dmr_anno_final = str(CW.dmr_anno_final)
+dmr_manhattan = str(CW.dmr_manhattan_plot)
+
+# Local DMR annotation-cache resources
+dmr_refgene_txt = str(CW.dmr_refgene_txt)
+dmr_cpg_island_txt = str(CW.dmr_cpg_island_txt)
+dmr_hgnc_bb = str(CW.dmr_hgnc_bb)
+dmr_refgene_bed = str(CW.dmr_refgene_bed)
+dmr_cpg_island_bed = str(CW.dmr_cpg_island_bed)
+dmr_hgnc_bed = str(CW.dmr_hgnc_bed)
+dmr_annotation_manifest = str(CW.dmr_annotation_manifest)
 
 dmr_infile = [results_bed]
-dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk, dmr_anno]
-dmr_anno_file = [dmr_cpg_anno]
+dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk]
+dmr_anno_files = [dmr_anno_final, dmr_manhattan]
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
-if STRATIFIED == True:
+if STRATIFIED:
     in_files = [PHENO, MVALS, strat_raw_results, strat_bacon_results,
                 strat_bacon_plots, meta_analysis_results,
                 annotated_results, manhattan_qq_plot]
@@ -58,8 +68,8 @@ else:
                 bacon_plots, annotated_results, 
                 manhattan_qq_plot]
 
-if DMR == "yes":
-    in_files = in_files + dmr_infile + dmr_outfiles + dmr_anno_file
+if DMR:
+    in_files = in_files + dmr_infile + dmr_outfiles + dmr_anno_files
 else:
     in_files = in_files
 
