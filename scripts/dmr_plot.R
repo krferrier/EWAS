@@ -287,7 +287,8 @@ save_plot_multi_format <- function(plot,
         height = height,
         units = units,
         dpi = dpi,
-        device = svglite::svglite
+        device = svglite::svglite,
+        limitsize = F
       )
     } else if (fmt == "pdf") {
       ggsave(
@@ -297,7 +298,8 @@ save_plot_multi_format <- function(plot,
         height = height,
         units = units,
         dpi = dpi,
-        device = grDevices::cairo_pdf
+        device = grDevices::cairo_pdf,
+        limitsize = F
       )
     } else {
       ggsave(
@@ -306,7 +308,8 @@ save_plot_multi_format <- function(plot,
         width = width,
         height = height,
         units = units,
-        dpi = dpi
+        dpi = dpi,
+        limitsize = F
       )
     }
 
@@ -753,7 +756,8 @@ make_dmr_zoom_plot <- function(slk_df,
     width = 18.3,
     height = out_height,
     units = "cm",
-    dpi = 300
+    dpi = 300,
+    limitsize = F
   )
 
   combined_plot
@@ -873,7 +877,6 @@ dmr_manhattan <- ggplot(slk, aes(x = POS, y = neglogp)) +
   geom_vline(
     data = dmrs_to_highlight,
     aes(xintercept = mid_POS),
-    inherit.aes = FALSE,
     color = "red3",
     linewidth = 0.45,
     alpha = 0.45
@@ -926,7 +929,8 @@ ggsave(
   width = 18.3,
   height = 12,
   units = "cm",
-  dpi = 300
+  dpi = 300,
+  limitsize = F
 )
 
 message("Saved genome-wide DMR plot: ", genome_out)
