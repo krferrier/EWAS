@@ -26,7 +26,7 @@ class ConfigWizard(object):
         "dmr", "genome_build", "min_pval", "win_size", "region_filter",
         "chunk_size", "processing_type", "n_workers", "out_dir", "out_type",
         "_groups", "_bacon_plot_kinds", "dmr_anno_cache_dir", "dmr_anno_cache_tag",
-        "gene_table", "ucsc_database_base", "ucsc_gbdb_base", "hgnc_complete_set_url"
+        "gene_table", "ucsc_database_base", "ucsc_gbdb_base"
     )
 
     def __init__(self, cfg: Dict):
@@ -89,15 +89,6 @@ class ConfigWizard(object):
                 cfg.get("ucsc_gbdb_base", "https://hgdownload.soe.ucsc.edu/gbdb"),
             )
         ).rstrip("/")
-        self.hgnc_complete_set_url: str = str(
-            anno_cfg.get(
-                "hgnc_complete_set_url",
-                cfg.get(
-                    "hgnc_complete_set_url",
-                    "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt",
-                ),
-            )
-        )
 
 
         # Keep plot kinds centralized
@@ -231,14 +222,6 @@ class ConfigWizard(object):
         return self._out("dmr", f"{self._prefix()}_ewas.slk.bed.gz")
 
     @property
-    def dmr_anno(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.anno.{self.genome_build}.bed")
-
-    @property
-    def dmr_cpg_anno(self):
-        return self._out("dmr", f"{self._prefix()}_ewas.anno.{self.genome_build}.with_cpgs.bed")
-
-    @property
     def dmr_anno_final(self) -> Path:
         return self._out("dmr", f"{self._prefix()}_dmr_annotated_results.tsv")
 
@@ -260,10 +243,6 @@ class ConfigWizard(object):
         return self.dmr_anno_resource_dir.joinpath("hgnc.bb")
 
     @property
-    def dmr_hgnc_complete_set(self) -> Path:
-        return self.dmr_anno_resource_dir.joinpath("hgnc_complete_set.txt")
-
-    @property
     def dmr_refgene_bed(self) -> Path:
         return self.dmr_anno_resource_dir.joinpath(f"{self.gene_table}.bed.gz")
 
@@ -272,13 +251,13 @@ class ConfigWizard(object):
         return self.dmr_anno_resource_dir.joinpath("cpgIslandExt.bed.gz")
 
     @property
-    def dmr_hgnc_raw_bed(self) -> Path:
-        return self.dmr_anno_resource_dir.joinpath("hgnc.raw.bed.gz")
-
-    @property
     def dmr_hgnc_bed(self) -> Path:
         return self.dmr_anno_resource_dir.joinpath("hgnc.bed.gz")
 
     @property
     def dmr_annotation_manifest(self) -> Path:
         return self.dmr_anno_resource_dir.joinpath("annotation_manifest.tsv")
+
+    @property
+    def dmr_manhattan_plot(self) -> Path:
+        return self._out("dmr", f"{self._prefix()}_dmr_manhattan.jpg")

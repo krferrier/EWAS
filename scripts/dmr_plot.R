@@ -8,9 +8,6 @@ suppressPackageStartupMessages({
   library(scales)
   library(cowplot)
   library(jsonlite)
-  library(AnnotationDbi)
-  library(GenomicFeatures)
-  library(GenomicRanges)
 })
 
 # ================================================================
@@ -20,96 +17,73 @@ suppressPackageStartupMessages({
 parser <- argparse::ArgumentParser(
   description = "Create DMR Manhattan and optional zoomed DMR plots with UCSC refGene gene tracks"
 )
-
 parser$add_argument("--slk-file",
                     required = TRUE,
                     help = "Path to comb-p/SLK CpG-level BED file, e.g. cotinine_ewas.slk.bed")
-
 parser$add_argument("--regions-file",
                     required = TRUE,
                     help = "Path to significant DMR regions BED file, e.g. cotinine_ewas.regions-p.bed.gz")
-
 parser$add_argument("--out-dir",
                     required = TRUE,
                     help = "Output directory")
-
 parser$add_argument("--assoc",
                     required = TRUE,
                     help = "Association name used in output filenames, e.g. cotinine")
-
 parser$add_argument("--min-probes",
                     type = "integer",
                     default = 2,
                     help = "Minimum number of CpGs required for a DMR to be highlighted")
-
 parser$add_argument("--max-y",
                     type = "double",
                     default = -1,
                     help = "Optional y-axis maximum for genome-wide plot. If <= 0, calculated from data.")
-
 parser$add_argument("--make-zoom",
                     choices = c("yes", "no"),
                     default = "yes",
                     help = "Whether to create zoomed-in plots for clusters of nearby multi-CpG DMRs")
-
 parser$add_argument("--zoom-padding",
                     type = "integer",
                     default = 2000,
                     help = "Number of bp to extend on each side of a zoomed DMR cluster")
-
 parser$add_argument("--cluster-gap",
                     type = "integer",
                     default = 3000,
                     help = "Maximum gap in bp between DMRs for grouping into the same zoom cluster")
-
 parser$add_argument("--point-jitter-bp",
                     type = "integer",
                     default = 25,
                     help = "Horizontal jitter in bp for highlighted DMR CpGs in zoomed plots")
-
 parser$add_argument("--zoom-midlines",
                     choices = c("yes", "no"),
                     default = "yes",
                     help = "Draw one faint vertical midpoint line per DMR in zoomed plots")
-
 parser$add_argument("--genome-build",
                     choices = c("hg19", "hg38"),
                     default = "hg38",
                     help = "Genome build for UCSC refGene annotation")
-
-parser$add_argument("--txdb-cache",
-                    default = "auto",
-                    help = "Path to cached refGene TxDb sqlite file. Use 'auto' to cache in out-dir, or '' to disable caching.")
-
 parser$add_argument("--gene-label-size",
                     type = "double",
                     default = 3.0,
                     help = "Gene label size in zoomed gene track")
-
 parser$add_argument("--make-combined",
                     choices = c("yes", "no"),
                     default = "yes",
                     help = "Whether to create a combined multi-panel figure from the Manhattan and zoomed plots")
-
 parser$add_argument("--combined-formats",
-                    default = "svg,pdf",
+                    default = "pdf",
                     help = "Comma-separated output formats for the combined figure, e.g. svg,pdf,png,jpg")
-
 parser$add_argument("--combined-width-cm",
                     type = "double",
                     default = 18.3,
                     help = "Width of combined multi-panel figure in cm")
-
 parser$add_argument("--combined-manhattan-height-cm",
                     type = "double",
                     default = 8.5,
                     help = "Target height in cm allocated to the Manhattan panel in the combined figure")
-
 parser$add_argument("--combined-region-height-cm",
                     type = "double",
                     default = 10,
                     help = "Target height in cm allocated to each row of regional panels in the combined figure")
-
 parser$add_argument("--panel-label-size",
                     type = "double",
                     default = 16,
@@ -117,7 +91,6 @@ parser$add_argument("--panel-label-size",
 
 args <- parser$parse_args()
 
-dir.create(args$out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # ================================================================
 # Helpers
@@ -133,6 +106,7 @@ chrom_to_num <- function(chrom) {
 
   out
 }
+
 get_gene_track_data_hgnc <- function(chr_string,
                                      region_start,
                                      region_end,
@@ -199,69 +173,6 @@ get_gene_track_data_hgnc <- function(chr_string,
   list(
     genes = gene_df,
     exons = exon_df
-  )
-}
-
-make_txdb_from_ucsc <- function(genome, tablename) {
-  # GenomicFeatures provides makeTxDbFromUCSC in many Bioconductor versions.
-  # In newer Bioconductor versions, this may move to txdbmaker.
-  if (exists("makeTxDbFromUCSC",
-             envir = asNamespace("GenomicFeatures"),
-             mode = "function")) {
-    return(GenomicFeatures::makeTxDbFromUCSC(
-      genome = genome,
-      tablename = tablename
-    ))
-  }
-
-  if (requireNamespace("txdbmaker", quietly = TRUE)) {
-    return(txdbmaker::makeTxDbFromUCSC(
-      genome = genome,
-      tablename = tablename
-    ))
-  }
-
-  stop(
-    "Could not find makeTxDbFromUCSC(). ",
-    "Install/update GenomicFeatures or install txdbmaker."
-  )
-}
-
-get_refgene_txdb <- function(genome_build, txdb_cache, out_dir) {
-  if (identical(txdb_cache, "auto")) {
-    txdb_cache <- file.path(
-      out_dir,
-      paste0("TxDb.UCSC.", genome_build, ".refGene.sqlite")
-    )
-  }
-
-  if (!identical(txdb_cache, "") && file.exists(txdb_cache)) {
-    message("Loading cached UCSC refGene TxDb: ", txdb_cache)
-    return(AnnotationDbi::loadDb(txdb_cache))
-  }
-
-  message("Building UCSC refGene TxDb for ", genome_build, "...")
-  message("This requires internet access the first time unless a cache is provided.")
-
-  txdb <- make_txdb_from_ucsc(
-    genome = genome_build,
-    tablename = "refGene"
-  )
-
-  if (!identical(txdb_cache, "")) {
-    message("Saving UCSC refGene TxDb cache: ", txdb_cache)
-    AnnotationDbi::saveDb(txdb, file = txdb_cache)
-  }
-
-  txdb
-}
-
-prepare_refgene_annotation <- function(txdb) {
-  message("Preparing refGene transcript and exon annotations...")
-
-  list(
-    tx_by_gene = GenomicFeatures::transcriptsBy(txdb, by = "gene"),
-    ex_by_gene = GenomicFeatures::exonsBy(txdb, by = "gene")
   )
 }
 
@@ -468,75 +379,6 @@ make_combined_dmr_figure <- function(manhattan_plot,
     plot = combined,
     width_cm = width_cm,
     height_cm = total_height_cm
-  )
-}
-
-get_gene_track_data_hgnc <- function(chr_string,
-                                     region_start,
-                                     region_end,
-                                     genome_build = "hg38") {
-
-  # UCSC uses 0-based starts internally.
-  ucsc_start <- max(0, region_start - 1)
-  ucsc_end <- region_end
-
-  api_url <- paste0(
-    "https://api.genome.ucsc.edu/getData/track?",
-    "genome=", genome_build,
-    ";track=hgnc",
-    ";chrom=", chr_string,
-    ";start=", ucsc_start,
-    ";end=", ucsc_end
-  )
-
-  res <- jsonlite::fromJSON(api_url)
-
-  if (!"hgnc" %in% names(res) || length(res$hgnc) == 0) {
-    return(list(
-      genes = data.frame(),
-      exons = data.frame()
-    ))
-  }
-
-  hgnc_df <- as.data.frame(res$hgnc)
-
-  if (nrow(hgnc_df) == 0) {
-    return(list(
-      genes = data.frame(),
-      exons = data.frame()
-    ))
-  }
-
-  gene_df <- hgnc_df %>%
-    transmute(
-      gene_id = name,
-      symbol = symbol,
-      chr = chrom,
-      # Convert UCSC 0-based chromStart to 1-based plotting coordinate.
-      gene_start = as.numeric(chromStart) + 1,
-      gene_end = as.numeric(chromEnd),
-      strand = strand
-    ) %>%
-    filter(
-      chr == chr_string,
-      gene_start <= region_end,
-      gene_end >= region_start
-    ) %>%
-    distinct(symbol, gene_start, gene_end, strand, .keep_all = TRUE) %>%
-    arrange(gene_start, gene_end)
-
-  # HGNC track is gene-span based, not transcript/exon based.
-  # For plotting, draw one block per gene span.
-  exon_df <- gene_df %>%
-    transmute(
-      gene_id = gene_id,
-      exon_start = gene_start,
-      exon_end = gene_end
-    )
-
-  list(
-    genes = gene_df,
-    exons = exon_df
   )
 }
 
@@ -1069,13 +911,13 @@ dmr_manhattan <- ggplot(slk, aes(x = POS, y = neglogp)) +
   labs(
     x = "Chromosome",
     y = expression(-log[10]("regional P-value")),
-    title = " "
-    #title = paste0(args$assoc, " DMR Manhattan plot")
+    #title = " "
+    title = paste0(args$assoc, " DMR Manhattan plot")
   )
 
 genome_out <- file.path(
   args$out_dir,
-  paste0(args$assoc, "_dmr_manhattan_multi_cpg_only.jpg")
+  paste0(args$assoc, "_dmr_manhattan.jpg")
 )
 
 ggsave(
@@ -1110,14 +952,14 @@ if (args$make_zoom == "yes" && nrow(dmrs_to_highlight) > 0) {
   for (i in seq_len(nrow(zoom_windows))) {
     chr_i <- zoom_windows$CHR[i]
     chr_string <- zoom_windows$chrom[i]
-    title_i <- " "
-    #title_i <- paste0(
-    #  "Zoomed DMR cluster ", i,
-    #  " (", chr_string, "; ",
-    #  zoom_windows$n_dmrs[i], " DMR",
-    #  ifelse(zoom_windows$n_dmrs[i] > 1, "s", ""),
-    #  ")"
-    #)
+    #title_i <- " "
+    title_i <- paste0(
+     "Zoomed DMR cluster ", i,
+     " (", chr_string, "; ",
+     zoom_windows$n_dmrs[i], " DMR",
+     ifelse(zoom_windows$n_dmrs[i] > 1, "s", ""),
+     ")"
+    )
 
     out_i <- file.path(
       args$out_dir,

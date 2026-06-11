@@ -116,45 +116,6 @@ rule fetch_dmr_annotation_cache:
         }} > {output.manifest}
         """
 
-#rule annotate_dmr_regions_local:
-#    input:
-#        regions = rules.run_dmr.output.regions,
-#        hgnc = rules.fetch_dmr_annotation_cache.output.hgnc_bed,
-#        refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
-#        cpg = rules.fetch_dmr_annotation_cache.output.cpg_bed,
-#        manifest = rules.fetch_dmr_annotation_cache.output.manifest
-#    output:
-#        annotated = dmr_anno
-#    conda:
-#        "../envs/dmr_annotation.yaml"
-#    shell:
-#        r"""
-#        set -euo pipefail
-#
-#        python scripts/annotate_dmrs_local.py \
-#          --regions {input.regions} \
-#          --hgnc-bed {input.hgnc} \
-#          --refgene-bed {input.refgene} \
-#          --cpg-bed {input.cpg} \
-#          --manifest {input.manifest} \
-#          --out {output.annotated}
-#
-#        test -s {output.annotated}
-#        """
-
-#rule annotate_dmr:
-#    input:
-#        ewas_bed = rules.make_bed.output,
-#        dmr_bed = rules.annotate_dmr_regions_local.output.annotated
-#    output:
-#        dmr_cpg_anno
-#    conda:
-#        "../envs/dmr.yaml"
-#    shell:
-#        """
-#        Rscript scripts/dmr_annotation.R {input.dmr_bed} {input.ewas_bed}
-#        """
-
 rule annotate_dmrs:
     input:
         dmr_regions = rules.run_dmr.output.regions,
@@ -171,7 +132,7 @@ rule annotate_dmrs:
         "../envs/dmr.yaml"
     shell:
         """
-        Rscript scripts/dmr_annotation_2.R \
+        Rscript scripts/dmr_annotation.R \
             --dmr-regions {input.dmr_regions} \
             --ewas-bed {input.ewas_bed} \
             --hgnc {input.hgnc} \
@@ -179,4 +140,38 @@ rule annotate_dmrs:
             --cpgIslandExt {input.cpgIslandExt} \
             --out-dir {params.o_prefix} \
             --assoc {params.assoc}
+        """
+
+rule plot_dmrs:
+    input:
+        slk = rules.run_dmr.output.slk,
+        dmr_regions = rules.run_dmr.output.regions
+    params:
+        o_prefix = OUT_DIR +  "/dmr",
+        assoc = ASSOC
+    output:
+        dmr_manhattan
+    conda:
+        "../envs/ewas.yaml"
+    shell:
+        """
+        Rscript scripts/dmr_plot.R \
+            --slk-file {input.slk} \
+            --regions-file {input.dmr_regions} \
+            --out-dir {params.o_prefix} \
+            --assoc {params.assoc} \
+            --min-probes 2 \
+            --max-y -1 \
+            --make-zoom no \
+            --zoom-padding 2000 \
+            --cluster-gap 3000 \
+            --point-jitter-bp 25 \
+            --zoom-midlines yes \
+            --genome-build hg38 \
+            --gene-label-size 3.0 \
+            --make-combined no \
+            --combined-formats pdf \
+            --combined-width-cm 18.3 \
+            --combined-region-height-cm 10 \
+            --panel-label-size 16
         """
