@@ -1,6 +1,7 @@
 rule stratify_data:
     input:
         script = "scripts/stratify.R",
+        fxns = "scripts/fxns/stratify_fxns.R",
         pheno_file = PHENO,
         methyl_file = MVALS
     params:

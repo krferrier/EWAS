@@ -1,8 +1,10 @@
 from helper_fxns import ConfigWizard
+from snakemake.utils import validate
 
 configfile: "config.yml"
 CW = ConfigWizard(config)
 
+validate(config, "config.schema.yml")
 
 #----SET VARIABLES----#
 PHENO = str(CW.pheno)
@@ -42,6 +44,7 @@ dmr_acf     = str(CW.dmr_acf)
 dmr_args    = str(CW.dmr_args)
 dmr_fdr     = str(CW.dmr_fdr)
 dmr_regions = str(CW.dmr_regions)
+dmr_regions_p = str(CW.dmr_regions_p)
 dmr_slk = str(CW.dmr_slk)
 dmr_anno_final = str(CW.dmr_anno_final)
 dmr_manhattan = str(CW.dmr_manhattan_plot)
@@ -56,7 +59,7 @@ dmr_hgnc_bed = str(CW.dmr_hgnc_bed)
 dmr_annotation_manifest = str(CW.dmr_annotation_manifest)
 
 dmr_infile = [results_bed]
-dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_slk]
+dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_regions_p, dmr_slk]
 dmr_anno_files = [dmr_anno_final, dmr_manhattan]
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if STRATIFIED:

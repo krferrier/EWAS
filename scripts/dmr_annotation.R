@@ -44,10 +44,40 @@ assoc <- args$assoc
 # Define outfile name
 out_file  <- paste0(out_dir, "/", assoc, "_dmr_annotated_results.tsv")
 
+# Function to check if regions file is empty
+has_records_gz <- function(path) {
+    con <- gzfile(path, open = "rt")
+    on.exit(close(con), add = TRUE)
+
+    length(readLines(con, n = 1L, warn = FALSE)) > 0L
+}
+
+# Check if regions file is empty. If it is, create a header only file and exit.
+if (!has_records_gz(dmr_regions)) {
+    message("No DMRs identified; writing empty annotation result.")
+
+    out_file <- file.path(
+        out_dir,
+        paste0(assoc, "_dmr_annotated_results.tsv")
+    )
+
+    # Preferably use the same final column names as a normal annotation output.
+    writeLines(
+        paste(
+            c("chrom", "start", "end", "min_p", "n_probes", "z_p", "z_sidak_p", "CpGs","min_cpg_pvalue",
+              "num_EWAS_sig_CpGs", "detected_by_EWAS", "HGNC_gene", "HGNC_symbol", "HGNC_gene_name", "HGNC_locus_group",
+              "HGNC_locus_type", "hgnc_distance_bp", "refGene_gene", "refGene_distance_bp", "cpgIsland_ID",
+              "cpgIslandExt_distance", "cpgIslandExt_feature"),
+            collapse = "\t"
+        ),
+        con = out_file
+    )
+    quit(save = "no", status = 0)
+}
+
 # -------------------------
 # Read input files
 # -------------------------
-
 # Read DMR annotation bed file output from comb-p
 dmr <- fread(dmr_regions, sep = "\t", header = TRUE)
 setnames(dmr, 1, "chrom")

@@ -34,6 +34,7 @@ rule run_dmr:
         args = dmr_args,
         fdr = dmr_fdr,
         regions = dmr_regions,
+        regions_p = dmr_regions_p,
         slk = dmr_slk
     conda:
         "../envs/dmr.yaml"
@@ -44,7 +45,12 @@ rule run_dmr:
 		--dist {params.win_sz} \
 		-p {params.o_prefix} \
 		--region-filter-p {params.region_filter} \
-		{input.in_file} 
+		{input.in_file}
+
+		n_raw_regions=$(gzip -cd {output.regions} | awk 'NF {{ n++ }} END {{ print n + 0 }}')
+		if [[ "$n_raw_regions" -eq 0 ]]; then
+		    gzip -n -c /dev/null > {output.regions_p}
+		fi
         """
 
 rule fetch_dmr_annotation_cache:
@@ -118,7 +124,7 @@ rule fetch_dmr_annotation_cache:
 
 rule annotate_dmrs:
     input:
-        dmr_regions = rules.run_dmr.output.regions,
+        dmr_regions_p = rules.run_dmr.output.regions_p,
         ewas_bed = rules.make_bed.output,
         hgnc = rules.fetch_dmr_annotation_cache.output.hgnc_bed,
         refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
@@ -133,7 +139,7 @@ rule annotate_dmrs:
     shell:
         """
         Rscript scripts/dmr_annotation.R \
-            --dmr-regions {input.dmr_regions} \
+            --dmr-regions {input.dmr_regions_p} \
             --ewas-bed {input.ewas_bed} \
             --hgnc {input.hgnc} \
             --refgene {input.refgene} \
@@ -145,7 +151,7 @@ rule annotate_dmrs:
 rule plot_dmrs:
     input:
         slk = rules.run_dmr.output.slk,
-        dmr_regions = rules.run_dmr.output.regions
+        dmr_regions_p = rules.run_dmr.output.regions_p
     params:
         o_prefix = OUT_DIR +  "/dmr",
         assoc = ASSOC
@@ -157,7 +163,7 @@ rule plot_dmrs:
         """
         Rscript scripts/dmr_plot.R \
             --slk-file {input.slk} \
-            --regions-file {input.dmr_regions} \
+            --regions-file {input.dmr_regions_p} \
             --out-dir {params.o_prefix} \
             --assoc {params.assoc} \
             --min-probes 2 \

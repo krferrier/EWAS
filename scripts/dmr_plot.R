@@ -91,10 +91,16 @@ parser$add_argument("--panel-label-size",
 
 args <- parser$parse_args()
 
-
 # ================================================================
 # Helpers
 # ================================================================
+
+has_records_gz <- function(path) {
+    con <- gzfile(path, open = "rt")
+    on.exit(close(con), add = TRUE)
+    length(readLines(con, n = 1L, warn = FALSE)) > 0L
+}
+
 
 chrom_to_num <- function(chrom) {
   x <- gsub("^chr", "", chrom, ignore.case = TRUE)
@@ -797,42 +803,68 @@ slk <- slk %>%
 # ================================================================
 # Read significant DMR region file
 # ================================================================
+has_dmrs <- has_records_gz(args$regions_file)
 
-regions <- data.table::fread(args$regions_file)
+slk$in_multi_cpg_dmr <- FALSE
 
-names(regions)[names(regions) == "#chrom"] <- "chrom"
-
-if (!all(c("chrom", "start", "end", "n_probes") %in% names(regions)) &&
-    ncol(regions) >= 5) {
-  names(regions)[1:5] <- c("chrom", "start", "end", "min_p", "n_probes")
-}
-
-stopifnot(all(c("chrom", "start", "end", "n_probes") %in% names(regions)))
-
-dmrs_to_highlight <- regions %>%
-  mutate(
-    CHR = chrom_to_num(chrom),
-    start = as.numeric(start),
-    end = as.numeric(end),
-    n_probes = as.integer(n_probes),
-    mid = (start + end) / 2
-  ) %>%
-  filter(
-    !is.na(CHR),
-    n_probes >= args$min_probes
-  ) %>%
-  arrange(CHR, start, end)
-
-dmrs_to_highlight <- cluster_dmrs(
-  dmrs_to_highlight,
-  max_gap = args$cluster_gap
+dmrs_to_highlight <- data.table::data.table(
+  chrom = character(),
+  start = numeric(),
+  end = numeric(),
+  n_probes = integer(),
+  CHR = numeric(),
+  mid = numeric(),
+  cluster_id = integer()
 )
 
-slk <- flag_cpgs_in_dmrs(slk, dmrs_to_highlight)
+if (!has_dmrs) {
+  message(
+    "No DMRs identified; generating genome-wide plot without DMR highlights."
+  )
+} else {
 
-message("DMRs plotted: ", nrow(dmrs_to_highlight))
-message("CpGs highlighted in DMRs: ", sum(slk$in_multi_cpg_dmr))
+  regions <- data.table::fread(
+    args$regions_file,
+    sep = "\t",
+    header = TRUE
+  )
 
+  if (nrow(regions) > 0L) {
+    names(regions)[names(regions) == "#chrom"] <- "chrom"
+
+    if (!all(c("chrom", "start", "end", "n_probes") %in% names(regions)) &&
+        ncol(regions) >= 5) {
+      names(regions)[1:5] <- c("chrom", "start", "end", "min_p", "n_probes")
+    }
+
+    stopifnot(all(c("chrom", "start", "end", "n_probes") %in% names(regions)))
+
+    dmrs_to_highlight <- regions %>%
+      mutate(
+        CHR = chrom_to_num(chrom),
+        start = as.numeric(start),
+        end = as.numeric(end),
+        n_probes = as.integer(n_probes),
+        mid = (start + end) / 2
+      ) %>%
+      filter(
+        !is.na(CHR),
+        n_probes >= args$min_probes
+      ) %>%
+      arrange(CHR, start, end) %>%
+      data.table::as.data.table()
+
+    dmrs_to_highlight <- cluster_dmrs(
+      dmrs_to_highlight,
+      max_gap = args$cluster_gap
+    )
+
+    slk <- flag_cpgs_in_dmrs(slk, dmrs_to_highlight)
+  }
+
+  message("DMRs plotted: ", nrow(dmrs_to_highlight))
+  message("CpGs highlighted in DMRs: ", sum(slk$in_multi_cpg_dmr))
+}
 # ================================================================
 # Genome-wide DMR Manhattan plot
 # ================================================================

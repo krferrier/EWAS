@@ -215,6 +215,10 @@ class ConfigWizard(object):
 
     @property
     def dmr_regions(self) -> Path:
+        return self._out("dmr", f"{self._prefix()}_ewas.regions.bed.gz")
+
+    @property
+    def dmr_regions_p(self) -> Path:
         return self._out("dmr", f"{self._prefix()}_ewas.regions-p.bed.gz")
 
     @property
