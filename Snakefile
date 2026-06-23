@@ -29,6 +29,8 @@ bacon_results    = str(CW.bacon_results)
 bacon_plots      = CW.bacon_plot_files()
 
 # Stratified outputs
+strat_pheno_files = CW.stratified_pheno_files
+strat_mvals_files = CW.stratified_mvals_files
 strat_raw_results    = CW.strat_raw_results()
 strat_bacon_results  = CW.strat_bacon_results()
 strat_bacon_plots    = CW.strat_bacon_plot_files()

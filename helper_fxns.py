@@ -144,6 +144,54 @@ class ConfigWizard(object):
     def _out(self, *parts: Union[str, Path]) -> Path:
         return self.out_dir.joinpath(*map(lambda p: str(p), parts))
 
+    # ---------- Group-specific paths ----------
+    def group_dir(self, group: str) -> Path:
+        """Directory containing outputs for one stratum."""
+        return self._out(group)
+
+    def group_pheno(self, group: str) -> Path:
+        return self.group_dir(group) / f"{group}_pheno.fst"
+
+    def group_mvals(self, group: str) -> Path:
+        return self.group_dir(group) / f"{group}_mvals.fst"
+
+    def group_ewas_results(self, group: str) -> Path:
+        return self.group_dir(group) / (
+            f"{group}_{self.assoc_var}_ewas_results{self.out_type}"
+        )
+
+    def group_bacon_results(self, group: str) -> Path:
+        return self.group_dir(group) / (
+            f"{group}_{self.assoc_var}_ewas_bacon_results{self.out_type}"
+        )
+
+    def group_bacon_plot(self, group: str, kind: str) -> Path:
+        if kind not in self._bacon_plot_kinds:
+            raise ValueError(
+                f"Unknown bacon plot kind '{kind}'. "
+                f"Allowed values: {', '.join(self._bacon_plot_kinds)}"
+            )
+
+        return self.group_dir(group) / "bacon_plots" / (
+            f"{group}_{self.assoc_var}_{kind}.jpg"
+        )
+
+    @property
+    def stratified_pheno_files(self) -> List[str]:
+        """Concrete phenotype outputs for every observed group."""
+        if self.groups == ["all"]:
+            return []
+
+        return [str(self.group_pheno(group)) for group in self.groups]
+
+    @property
+    def stratified_mvals_files(self) -> List[str]:
+        """Concrete methylation outputs for every observed group."""
+        if self.groups == ["all"]:
+            return []
+
+        return [str(self.group_mvals(group)) for group in self.groups]
+
     # ---------- Unstratified outputs ----------
     @property
     def raw_results(self) -> Path:
@@ -171,29 +219,57 @@ class ConfigWizard(object):
         return [str(self._out("bacon_plots", f"{self._prefix()}_{k}.jpg"))
                 for k in self._bacon_plot_kinds]
 
-    # ---------- Stratified outputs ----------
+    # ---------- Stratified EWAS outputs ----------
     def strat_raw_results(self) -> List[str]:
         if self.groups == ["all"]:
             return []
-        return [str(self._out(g, f"{self._prefix(g)}_ewas_results{self.out_type}"))
-                for g in self.groups]
+
+        return [
+            str(self.group_ewas_results(group))
+            for group in self.groups
+        ]
 
     def strat_bacon_results(self) -> List[str]:
         if self.groups == ["all"]:
             return []
-        return [str(self._out(g, f"{self._prefix(g)}_ewas_bacon_results{self.out_type}"))
-                for g in self.groups]
+
+        return [
+            str(self.group_bacon_results(group))
+            for group in self.groups
+        ]
 
     def strat_bacon_plot_files(self) -> List[str]:
         if self.groups == ["all"]:
             return []
-        files = []
-        for g in self.groups:
-            files.extend(
-                str(self._out(g, "bacon_plots", f"{self._prefix(g)}_{k}.jpg"))
-                for k in self._bacon_plot_kinds
-            )
-        return files
+        return [
+            str(self.group_bacon_plot(group, kind))
+            for group in self.groups
+            for kind in self._bacon_plot_kinds
+        ]
+
+    # ---------- METAL meta-analysis outputs ----------
+    @property
+    def metal_out_prefix(self) -> Path:
+        """
+        Prefix passed to METAL's OUTFILE command.
+
+        METAL appends its output index and extension:
+        <prefix>1.txt
+        """
+        return self._out(f"{self.assoc_var}_ewas_meta_analysis_results_")
+
+    @property
+    def meta_analysis_results(self) -> Path:
+        """Expected first METAL meta-analysis output."""
+        return Path(f"{self.metal_out_prefix}1.txt")
+
+    @property
+    def metal_command_script(self) -> Path:
+        """Generated METAL command file; not a source script."""
+        return self._out(
+            "meta_analysis",
+            f"{self.assoc_var}_metal_commands.sh",
+        )
 
     # ---------- DMR outputs ----------
     @property

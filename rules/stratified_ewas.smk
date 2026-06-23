@@ -6,11 +6,12 @@ rule stratify_data:
         methyl_file = MVALS
     params:
         strat_vars = ','.join(STRAT_VARS),
-        o_dir = OUT_DIR,
-        n_threads = N_WORKERS
+        o_dir = OUT_DIR
+    threads:
+        N_WORKERS
     output: 
-        temp(expand(OUT_DIR + "/{group}/{group}_pheno.fst", group = GROUPS)),
-        temp(expand(OUT_DIR + "/{group}/{group}_mvals.fst", group = GROUPS))
+        temp(strat_pheno_files),
+        temp(strat_mvals_files)
     conda:
         "../envs/ewas.yaml"    
     shell:
@@ -20,25 +21,25 @@ rule stratify_data:
         --methyl {input.methyl_file} \
         --stratify {params.strat_vars} \
         --out-dir {params.o_dir} \
-        --threads {params.n_threads}
+        --threads {threads}
         """
 
 rule run_ewas_group:
     input:
         script = "scripts/ewas.R",
-        pheno_file = OUT_DIR + "/{group}/{group}_pheno.fst",
-        methyl_file= OUT_DIR + "/{group}/{group}_mvals.fst"
+        pheno_file = lambda wildcards: str(CW.group_pheno(wildcards.group)),
+        methyl_file= lambda wildcards: str(CW.group_mvals(wildcards.group))
     params:
         assoc_var = ASSOC,
         stratified = STRATIFIED,
         cs = config["chunk_size"],
         pt = config["processing_type"],
         n_workers = N_WORKERS,
-        o_dir = OUT_DIR + "/{group}/",
+        o_dir = lambda wildcards: str(CW.group_dir(wildcards.group)),
         o_type = OUT_TYPE,
-        o_prefix = "{group}"
+        o_prefix = lambda wildcards: wildcards.group
     output:
-        OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_results" + OUT_TYPE
+        ewas_results = str(CW.group_ewas_results("{group}"))
     log:
         "log/{group}_ewas.log"
     conda:
@@ -59,20 +60,21 @@ rule run_ewas_group:
         --out-prefix {params.o_prefix} \
         > {log} 2>&1
         """
+
 rule run_bacon_group:
     input:
-        in_file = OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_results" + OUT_TYPE,
+        in_file = rules.run_ewas_group.output.ewas_results,
         script = "scripts/run_bacon.R"
     params:
-        o_dir = OUT_DIR + "/{group}/",
+        o_dir = lambda wildcards: str(CW.group_dir(wildcards.group)),
         o_type = OUT_TYPE,
-        o_prefix = "{group}"
+        o_prefix = lambda wildcards: wildcards.group
     output:
-        bacon_results = OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_bacon_results" + OUT_TYPE,
-        plot_trace= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_traces.jpg",
-        plot_post= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_posteriors.jpg",
-        plot_fit= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_fit.jpg",
-        plot_qqs= OUT_DIR + "/{group}/bacon_plots/{group}_" + ASSOC + "_qqs.jpg"
+        bacon_results = str(CW.group_bacon_results("{group}")),
+        plot_trace = str(CW.group_bacon_plot("{group}", "traces")),
+        plot_post = str(CW.group_bacon_plot("{group}", "posteriors")),
+        plot_fit = str(CW.group_bacon_plot("{group}", "fit")),
+        plot_qqs = str(CW.group_bacon_plot("{group}", "qqs"))
     conda:
         "../envs/ewas.yaml"
     shell:
@@ -116,20 +118,20 @@ rule install_metal:
 rule make_metal_script:
     input:
         script = "scripts/metal_cmd.sh",
-        in_files = expand(OUT_DIR + "/{group}/{group}_" + ASSOC + "_ewas_bacon_results" + OUT_TYPE, group=GROUPS)
+        in_files = expand(rules.run_bacon_group.output.bacon_results, group=GROUPS)
     params:
-        out_prefix = OUT_DIR + "/" + ASSOC + "_ewas_meta_analysis_results_"
+        out_prefix = str(CW.metal_out_prefix)
     output:
-        "scripts/meta_analysis_script.sh"
+        metal_script = str(CW.metal_command_script)
     shell:
-        "sh {input.script} {input.in_files} {params.out_prefix}"
+        "bash {input.script} {output.metal_script} {params.out_prefix} {input.in_files}"
     
 
 rule run_metal:
     input:
         metal = rules.install_metal.output.metal_bin,
         bacon_group_results = expand(rules.run_bacon_group.output.bacon_results, group = GROUPS),
-        script = "scripts/meta_analysis_script.sh"
+        script = rules.make_metal_script.output.metal_script
     output:
         meta_analysis_results
     shell: 

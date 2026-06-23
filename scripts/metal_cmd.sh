@@ -1,11 +1,36 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Define the output script file
-output_script="scripts/meta_analysis_script.sh"
+# Usage:
+#   metal_cmd.sh <command_file> <outfile_prefix> <input1> [input2 ...]
+#
+# Example:
+#   metal_cmd.sh \
+#       results/meta_analysis/BMI_metal_commands.txt \
+#       results/BMI_ewas_meta_analysis_results_ \
+#       results/F/F_BMI_ewas_bacon_results.csv.gz \
+#       results/M/M_BMI_ewas_bacon_results.csv.gz
 
-# Create a new script file
+if [[ "$#" -lt 3 ]]; then
+    echo "Usage: $0 <command_file> <outfile_prefix> <input1> [input2 ...]" >&2
+    exit 2
+fi
+
+# First argument: file to create containing METAL commands.
+output_script="$1"
+shift
+
+# Second argument: METAL output prefix.
+# METAL appends its numbered output suffix, e.g. <prefix>1.txt.
+outfile_prefix="$1"
+shift
+
+# All remaining arguments are bacon-adjusted EWAS result files.
+input_files=( "$@" )
+
+# Ensure the generated-command-file directory exists.
+mkdir -p "$(dirname "$output_script")"
+
 {
-    # Write the common header content
     echo "SCHEME STDERR"
     echo "COLUMNCOUNTING LENIENT"
     echo "SEPARATOR COMMA"
@@ -14,24 +39,16 @@ output_script="scripts/meta_analysis_script.sh"
     echo "STDERRLABEL bacon.se"
     echo "MARKER cpgid"
     echo "WEIGHT n"
+    echo
 
-    # Process each provided input file path as PROCESSFILE commands
-    while [ "$#" -gt 1 ]; do
-        input_file="$1"
+    for input_file in "${input_files[@]}"; do
         echo "PROCESSFILE $input_file"
-        shift
     done
 
-    # Write the OUTFILE command using the last argument as the output file path
-    output_file="$1"
-    echo "OUTFILE $output_file  .txt"
-    
-    # Write the remaining content
+    echo
+    echo "OUTFILE $outfile_prefix .txt"
     echo "ANALYZE HETEROGENEITY"
     echo "CLEAR"
 } > "$output_script"
 
-# Make the output script executable
-chmod +x "$output_script"
-
-echo "Script '$output_script' created and made executable."
+echo "METAL command file created: $output_script"
