@@ -1,0 +1,194 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+
+title: "EWAS Snakemake workflow configuration"
+description: >
+  Validation schema for the EWAS, DMR, annotation, and plotting workflow.
+
+type: object
+
+properties:
+
+  # Input data
+  mvals:
+    type: string
+    minLength: 1
+    description: "Path to the CpG-by-sample methylation M-value matrix."
+
+  pheno:
+    type: string
+    minLength: 1
+    description: "Path to the phenotype and covariate table."
+
+  # EWAS model parameters
+  association_variable:
+    type: string
+    minLength: 1
+    description: "Phenotype-table column name for the primary EWAS exposure."
+
+  stratified_ewas:
+    type: string
+    enum:
+      - "yes"
+      - "no"
+    description: "Whether to run EWAS separately within strata."
+
+  stratify_variables:
+    type: array
+    uniqueItems: true
+    items:
+      type: string
+      minLength: 1
+    description: >
+      Phenotype-table column names used for stratified analyses. Must contain
+      at least one variable when stratified_ewas is 'yes'.
+
+  # DMR analysis
+  dmr_analysis:
+    type: string
+    enum:
+      - "yes"
+      - "no"
+    description: "Whether to run the DMR analysis."
+
+  min_pvalue:
+    type: number
+    exclusiveMinimum: 0
+    maximum: 1
+    description: >
+      CpG-level p-value threshold used to begin or extend a DMR.
+
+  window_size:
+    type: integer
+    minimum: 1
+    description: >
+      Maximum genomic distance, in base pairs, between qualifying CpGs within
+      a candidate DMR.
+
+  region_filter:
+    type: number
+    exclusiveMinimum: 0
+    maximum: 1
+    description: "Post-filter threshold for reported DMRs."
+
+  # DMR annotation
+  genome_build:
+    type: string
+    enum:
+      - hg19
+      - hg38
+    description: "Genome build used for DMR annotation and plotting."
+
+  annotation:
+    type: object
+    properties:
+      method:
+        type: string
+        enum:
+          - local
+        description: "Annotation-cache method."
+
+      gene_table:
+        type: string
+        minLength: 1
+        description: "UCSC gene table used for nearby-gene annotation."
+
+      cache_tag:
+        type: string
+        pattern: "^(latest|[0-9]{4}-[0-9]{2}-[0-9]{2})$"
+        description: >
+          Annotation-cache version. Use 'latest' during development or an
+          ISO date such as 2026-06-08 for a fixed reproducible release.
+
+      ucsc_database_base:
+        type: string
+        pattern: "^https://.+"
+        description: "Base URL for UCSC Golden Path database downloads."
+
+      ucsc_gbdb_base:
+        type: string
+        pattern: "^https://.+"
+        description: "Base URL for UCSC gbdb downloads."
+
+      hgnc_complete_set_url:
+        type: string
+        pattern: "^https://.+"
+        description: "URL for the HGNC complete gene-set download."
+
+    required:
+      - method
+      - gene_table
+      - cache_tag
+      - ucsc_database_base
+      - ucsc_gbdb_base
+      - hgnc_complete_set_url
+
+    # Keep permissive initially in case you later add annotation settings.
+    additionalProperties: true
+
+  # Parallelization
+  chunk_size:
+    type: integer
+    minimum: 1
+    description: "Number of methylation sites processed per EWAS chunk."
+
+  processing_type:
+    type: string
+    enum:
+      - sequential
+      - multisession
+      - multicore
+      - cluster
+    description: "Parallelization backend used by the EWAS R script."
+
+  workers:
+    type: integer
+    minimum: 1
+    description: "Number of workers requested per EWAS job."
+
+  # Output settings
+  out_directory:
+    type: string
+    minLength: 2
+    pattern: "^.+/$"
+    description: "Output directory path, including a trailing slash."
+
+  out_type:
+    type: string
+    enum:
+      - ".csv"
+      - ".csv.gz"
+    description: "Output table format."
+
+required:
+  - mvals
+  - pheno
+  - association_variable
+  - stratified_ewas
+  - stratify_variables
+  - dmr_analysis
+  - min_pvalue
+  - window_size
+  - region_filter
+  - genome_build
+  - annotation
+  - chunk_size
+  - processing_type
+  - workers
+  - out_directory
+  - out_type
+
+# Begin permissively. See note below before changing this to false.
+additionalProperties: true
+
+allOf:
+  # A stratified analysis must name at least one stratification variable.
+  - if:
+      properties:
+        stratified_ewas:
+          const: "yes"
+      required:
+        - stratified_ewas
+    then:
+      properties:
+        stratify_variables:
+          minItems: 1
