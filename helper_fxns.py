@@ -197,37 +197,49 @@ class ConfigWizard(object):
 
     # ---------- DMR outputs ----------
     @property
+    def dmr_out_dir(self) -> Path:
+        return self._out("dmr")
+
+    @property
+    def dmr_out_prefix(self) -> Path:
+        return self._out("dmr", f"{self.assoc_var}_ewas")
+
+    @property
     def dmr_results_bed(self) -> Path:
-        return self._out(f"{self._prefix()}_ewas_annotated_results.bed")
+        """Combined EWAS BED file supplied to comb-p."""
+        return self._out(f"{self.assoc_var}_ewas_annotated_results.bed")
 
     @property
     def dmr_acf(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.acf.txt")
+        return Path(f"{self.dmr_out_prefix}.acf.txt")
 
     @property
     def dmr_args(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.args.txt")
+        return Path(f"{self.dmr_out_prefix}.args.txt")
 
     @property
     def dmr_fdr(self) -> Path:
-        # Keep gz suffix per your Snakefile
-        return self._out("dmr", f"{self._prefix()}_ewas.fdr.bed.gz")
+        return Path(f"{self.dmr_out_prefix}.fdr.bed.gz")
 
     @property
     def dmr_regions(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.regions.bed.gz")
+        return Path(f"{self.dmr_out_prefix}.regions.bed.gz")
 
     @property
     def dmr_regions_p(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.regions-p.bed.gz")
+        return Path(f"{self.dmr_out_prefix}.regions-p.bed.gz")
 
     @property
     def dmr_slk(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_ewas.slk.bed.gz")
+        return Path(f"{self.dmr_out_prefix}.slk.bed.gz")
 
     @property
     def dmr_anno_final(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_dmr_annotated_results.tsv")
+        return self._out("dmr", f"{self.assoc_var}_dmr_annotated_results.tsv")
+
+    @property
+    def dmr_manhattan_plot(self) -> Path:
+        return self._out("dmr", f"{self.assoc_var}_dmr_manhattan.jpg")
 
     # ---------- Local DMR annotation-cache resources ----------
     @property
@@ -261,7 +273,3 @@ class ConfigWizard(object):
     @property
     def dmr_annotation_manifest(self) -> Path:
         return self.dmr_anno_resource_dir.joinpath("annotation_manifest.tsv")
-
-    @property
-    def dmr_manhattan_plot(self) -> Path:
-        return self._out("dmr", f"{self._prefix()}_dmr_manhattan.jpg")

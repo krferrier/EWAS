@@ -21,7 +21,7 @@ OUT_TYPE = CW.out_type
 
 # Plots / groups
 PLOTS = CW.bacon_plot_kinds
-GROUPS = CW.groups  # e.g., ["female"] or ["female","male","..."] or ["all"]
+GROUPS = CW.groups
 
 # Unstratified outputs
 raw_results      = str(CW.raw_results)
@@ -39,6 +39,8 @@ manhattan_qq_plot = str(CW.manhattan_qq_plot)
 meta_analysis_results = str(CW.meta_analysis_results)
 
 # DMR outputs
+dmr_out_directory = str(CW.dmr_out_dir)
+dmr_out_prefix = str(CW.dmr_out_prefix)
 results_bed = str(CW.dmr_results_bed)
 dmr_acf     = str(CW.dmr_acf)
 dmr_args    = str(CW.dmr_args)

@@ -25,7 +25,7 @@ rule run_dmr:
     input:
         in_file = results_bed
     params:
-        o_prefix = OUT_DIR +  "/dmr/" + ASSOC + "_ewas",
+        o_prefix = dmr_out_prefix,
         min_p = CW.min_pval,
         win_sz = CW.win_size,
         region_filter = CW.region_filter
@@ -130,7 +130,7 @@ rule annotate_dmrs:
         refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
         cpgIslandExt = rules.fetch_dmr_annotation_cache.output.cpg_bed
     params:
-        o_prefix = OUT_DIR +  "/dmr",
+        o_prefix = dmr_out_directory,
         assoc = ASSOC
     output:
         dmr_anno_final
@@ -153,7 +153,7 @@ rule plot_dmrs:
         slk = rules.run_dmr.output.slk,
         dmr_regions_p = rules.run_dmr.output.regions_p
     params:
-        o_prefix = OUT_DIR +  "/dmr",
+        o_prefix = dmr_out_directory,
         assoc = ASSOC
     output:
         dmr_manhattan
