@@ -2,14 +2,14 @@ localrules: fetch_dmr_annotation_cache
 
 rule make_bed:
     input: 
-        in_file = annotated_results,
+        in_file = CW.annotated_results,
         script = "scripts/make_bed.R"
     params:
-        o_dir = OUT_DIR,
-        strat = STRATIFIED,
-        assoc = ASSOC
+        o_dir = CW.out_dir,
+        strat = CW.stratified,
+        assoc = CW.assoc_var
     output: 
-        results_bed
+        CW.dmr_results_bed
     conda:
         "../envs/dmr.yaml"
     shell:
@@ -23,19 +23,19 @@ rule make_bed:
 
 rule run_dmr:
     input:
-        in_file = results_bed
+        in_file = rules.make_bed.output
     params:
-        o_prefix = dmr_out_prefix,
+        o_prefix = CW.dmr_out_prefix,
         min_p = CW.min_pval,
         win_sz = CW.win_size,
         region_filter = CW.region_filter
     output: 
-        acf = dmr_acf,
-        args = dmr_args,
-        fdr = dmr_fdr,
-        regions = dmr_regions,
-        regions_p = dmr_regions_p,
-        slk = dmr_slk
+        acf = CW.dmr_acf,
+        args = CW.dmr_args,
+        fdr = CW.dmr_fdr,
+        regions = CW.dmr_regions,
+        regions_p = CW.dmr_regions_p,
+        slk = CW.dmr_slk
     conda:
         "../envs/dmr.yaml"
     shell:
@@ -55,13 +55,13 @@ rule run_dmr:
 
 rule fetch_dmr_annotation_cache:
     output:
-        refgene_txt = dmr_refgene_txt,
-        cpg_txt = dmr_cpg_island_txt,
-        hgnc_bb = dmr_hgnc_bb,
-        refgene_bed = dmr_refgene_bed,
-        cpg_bed = dmr_cpg_island_bed,
-        hgnc_bed = dmr_hgnc_bed,
-        manifest = dmr_annotation_manifest
+        refgene_txt = CW.dmr_refgene_txt,
+        cpg_txt = CW.dmr_cpg_island_txt,
+        hgnc_bb = CW.dmr_hgnc_bb,
+        refgene_bed = CW.dmr_refgene_bed,
+        cpg_bed = CW.dmr_cpg_island_bed,
+        hgnc_bed = CW.dmr_hgnc_bed,
+        manifest = CW.dmr_annotation_manifest
     params:
         genome = CW.genome_build,
         gene_table = CW.gene_table,
@@ -71,12 +71,7 @@ rule fetch_dmr_annotation_cache:
     conda:
         "../envs/dmr_annotation.yaml"
     shell:
-        r"""
-        set -euo pipefail
-
-        cache_dir=$(dirname {output.refgene_txt})
-        mkdir -p "$cache_dir"
-
+        """
         wget -O {output.refgene_txt}.tmp \
           {params.ucsc_database_base}/{params.genome}/database/{params.gene_table}.txt.gz
         mv {output.refgene_txt}.tmp {output.refgene_txt}
@@ -130,10 +125,10 @@ rule annotate_dmrs:
         refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
         cpgIslandExt = rules.fetch_dmr_annotation_cache.output.cpg_bed
     params:
-        o_prefix = dmr_out_directory,
-        assoc = ASSOC
+        o_prefix = CW.dmr_out_dir,
+        assoc = CW.assoc_var
     output:
-        dmr_anno_final
+        CW.dmr_anno_final
     conda:
         "../envs/dmr.yaml"
     shell:
@@ -153,10 +148,10 @@ rule plot_dmrs:
         slk = rules.run_dmr.output.slk,
         dmr_regions_p = rules.run_dmr.output.regions_p
     params:
-        o_prefix = dmr_out_directory,
-        assoc = ASSOC
+        o_prefix = CW.dmr_out_dir,
+        assoc = CW.assoc_var
     output:
-        dmr_manhattan
+        CW.dmr_manhattan_plot
     conda:
         "../envs/ewas.yaml"
     shell:

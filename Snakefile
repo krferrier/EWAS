@@ -6,76 +6,21 @@ CW = ConfigWizard(config)
 
 validate(config, "config.schema.yml")
 
-#----SET VARIABLES----#
-PHENO = str(CW.pheno)
-MVALS = str(CW.mvals)
-ASSOC = CW.assoc_var
-STRATIFIED = CW.stratified
-STRAT_VARS = CW.strat_vars
-DMR = CW.dmr
-CHUNK_SIZE = CW.chunk_size
-PROCESSING_TYPE = CW.processing_type
-N_WORKERS = CW.n_workers
-OUT_DIR = str(CW.out_dir)
-OUT_TYPE = CW.out_type
-
-# Plots / groups
-PLOTS = CW.bacon_plot_kinds
-GROUPS = CW.groups
-
-# Unstratified outputs
-raw_results      = str(CW.raw_results)
-bacon_results    = str(CW.bacon_results)
-bacon_plots      = CW.bacon_plot_files()
-
-# Stratified outputs
-strat_pheno_files = CW.stratified_pheno_files
-strat_mvals_files = CW.stratified_mvals_files
-strat_raw_results    = CW.strat_raw_results()
-strat_bacon_results  = CW.strat_bacon_results()
-strat_bacon_plots    = CW.strat_bacon_plot_files()
-
-# Final Outputs
-annotated_results = str(CW.annotated_results)
-manhattan_qq_plot = str(CW.manhattan_qq_plot)
-meta_analysis_results = str(CW.meta_analysis_results)
-
-# DMR outputs
-dmr_out_directory = str(CW.dmr_out_dir)
-dmr_out_prefix = str(CW.dmr_out_prefix)
-results_bed = str(CW.dmr_results_bed)
-dmr_acf     = str(CW.dmr_acf)
-dmr_args    = str(CW.dmr_args)
-dmr_fdr     = str(CW.dmr_fdr)
-dmr_regions = str(CW.dmr_regions)
-dmr_regions_p = str(CW.dmr_regions_p)
-dmr_slk = str(CW.dmr_slk)
-dmr_anno_final = str(CW.dmr_anno_final)
-dmr_manhattan = str(CW.dmr_manhattan_plot)
-
-# Local DMR annotation-cache resources
-dmr_refgene_txt = str(CW.dmr_refgene_txt)
-dmr_cpg_island_txt = str(CW.dmr_cpg_island_txt)
-dmr_hgnc_bb = str(CW.dmr_hgnc_bb)
-dmr_refgene_bed = str(CW.dmr_refgene_bed)
-dmr_cpg_island_bed = str(CW.dmr_cpg_island_bed)
-dmr_hgnc_bed = str(CW.dmr_hgnc_bed)
-dmr_annotation_manifest = str(CW.dmr_annotation_manifest)
-
-dmr_infile = [results_bed]
-dmr_outfiles = [dmr_acf, dmr_args, dmr_fdr, dmr_regions, dmr_regions_p, dmr_slk]
-dmr_anno_files = [dmr_anno_final, dmr_manhattan]
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
-if STRATIFIED:
-    in_files = [PHENO, MVALS, strat_raw_results, strat_bacon_results,
-                strat_bacon_plots, meta_analysis_results,
-                annotated_results, manhattan_qq_plot]
+if CW.stratified:
+    in_files = [CW.pheno, CW.mvals, CW.strat_raw_results(), CW.strat_bacon_results(),
+                CW.strat_bacon_plot_files(), CW.meta_analysis_results,
+                CW.annotated_results, CW.manhattan_qq_plot]
 else:
-    in_files = [PHENO, MVALS, raw_results, bacon_results, 
-                bacon_plots, annotated_results, 
-                manhattan_qq_plot]
+    in_files = [CW.pheno, CW.mvals, CW.raw_results, CW.bacon_results,
+                CW.bacon_plot_files(), CW.annotated_results,
+                CW.manhattan_qq_plot]
 
-if DMR:
+dmr_infile = [CW.dmr_results_bed]
+dmr_outfiles = [CW.dmr_acf, CW.dmr_args, CW.dmr_fdr, CW.dmr_regions, CW.dmr_regions_p, CW.dmr_slk]
+dmr_anno_files = [CW.dmr_anno_final, CW.dmr_manhattan_plot]
+
+if CW.dmr:
     in_files = in_files + dmr_infile + dmr_outfiles + dmr_anno_files
 else:
     in_files = in_files

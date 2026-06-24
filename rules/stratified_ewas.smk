@@ -2,16 +2,16 @@ rule stratify_data:
     input:
         script = "scripts/stratify.R",
         fxns = "scripts/fxns/stratify_fxns.R",
-        pheno_file = PHENO,
-        methyl_file = MVALS
+        pheno_file = CW.pheno,
+        methyl_file = CW.mvals
     params:
-        strat_vars = ','.join(STRAT_VARS),
-        o_dir = OUT_DIR
+        strat_vars = ','.join(CW.strat_vars),
+        o_dir = CW.out_dir
     threads:
-        N_WORKERS
+        CW.n_workers
     output: 
-        temp(strat_pheno_files),
-        temp(strat_mvals_files)
+        temp(CW.stratified_pheno_files),
+        temp(CW.stratified_mvals_files)
     conda:
         "../envs/ewas.yaml"    
     shell:
@@ -27,19 +27,19 @@ rule stratify_data:
 rule run_ewas_group:
     input:
         script = "scripts/ewas.R",
-        pheno_file = lambda wildcards: str(CW.group_pheno(wildcards.group)),
-        methyl_file= lambda wildcards: str(CW.group_mvals(wildcards.group))
+        pheno_file = lambda wildcards: CW.group_pheno(wildcards.group),
+        methyl_file= lambda wildcards: CW.group_mvals(wildcards.group)
     params:
-        assoc_var = ASSOC,
-        stratified = STRATIFIED,
-        cs = config["chunk_size"],
-        pt = config["processing_type"],
-        n_workers = N_WORKERS,
-        o_dir = lambda wildcards: str(CW.group_dir(wildcards.group)),
-        o_type = OUT_TYPE,
+        assoc_var = CW.assoc_var,
+        stratified = CW.stratified,
+        cs = CW.chunk_size,
+        pt = CW.processing_type,
+        n_workers = CW.n_workers,
+        o_dir = lambda wildcards: CW.group_dir(wildcards.group),
+        o_type = CW.out_type,
         o_prefix = lambda wildcards: wildcards.group
     output:
-        ewas_results = str(CW.group_ewas_results("{group}"))
+        ewas_results = CW.group_ewas_results("{group}")
     log:
         "log/{group}_ewas.log"
     conda:
@@ -66,15 +66,15 @@ rule run_bacon_group:
         in_file = rules.run_ewas_group.output.ewas_results,
         script = "scripts/run_bacon.R"
     params:
-        o_dir = lambda wildcards: str(CW.group_dir(wildcards.group)),
-        o_type = OUT_TYPE,
+        o_dir = lambda wildcards: CW.group_dir(wildcards.group),
+        o_type = CW.out_type,
         o_prefix = lambda wildcards: wildcards.group
     output:
-        bacon_results = str(CW.group_bacon_results("{group}")),
-        plot_trace = str(CW.group_bacon_plot("{group}", "traces")),
-        plot_post = str(CW.group_bacon_plot("{group}", "posteriors")),
-        plot_fit = str(CW.group_bacon_plot("{group}", "fit")),
-        plot_qqs = str(CW.group_bacon_plot("{group}", "qqs"))
+        bacon_results = CW.group_bacon_results("{group}"),
+        plot_trace = CW.group_bacon_plot("{group}", "traces"),
+        plot_post = CW.group_bacon_plot("{group}", "posteriors"),
+        plot_fit = CW.group_bacon_plot("{group}", "fit"),
+        plot_qqs = CW.group_bacon_plot("{group}", "qqs")
     conda:
         "../envs/ewas.yaml"
     shell:
@@ -118,7 +118,7 @@ rule install_metal:
 rule make_metal_script:
     input:
         script = "scripts/metal_cmd.sh",
-        in_files = expand(rules.run_bacon_group.output.bacon_results, group=GROUPS)
+        in_files = expand(rules.run_bacon_group.output.bacon_results, group=CW.groups)
     params:
         out_prefix = str(CW.metal_out_prefix)
     output:
@@ -130,9 +130,9 @@ rule make_metal_script:
 rule run_metal:
     input:
         metal = rules.install_metal.output.metal_bin,
-        bacon_group_results = expand(rules.run_bacon_group.output.bacon_results, group = GROUPS),
+        bacon_group_results = expand(rules.run_bacon_group.output.bacon_results, group = CW.groups),
         script = rules.make_metal_script.output.metal_script
     output:
-        meta_analysis_results
+        CW.meta_analysis_results
     shell: 
         "{input.metal} {input.script}"

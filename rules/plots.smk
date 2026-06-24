@@ -1,13 +1,13 @@
 rule plot_results:
     input: 
-        in_file = annotated_results,
+        in_file = CW.annotated_results,
         script = "scripts/plots.R"
     params:
-        o_dir = OUT_DIR,
-        strat = STRATIFIED,
-        assoc = ASSOC
+        o_dir = CW.out_dir,
+        strat = CW.stratified,
+        assoc = CW.assoc_var
     output: 
-        manhattan_qq_plot
+        CW.manhattan_qq_plot
     conda:
         "../envs/ewas.yaml"
     shell:

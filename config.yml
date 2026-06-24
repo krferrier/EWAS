@@ -12,7 +12,7 @@ stratify_variables: ["sex"] # If yes, list which variable(s) to stratify on
 # Differentially Methylated Region (DMR) Analysis 
 #################################################
 dmr_analysis: "yes" # yes or no
-min_pvalue: 1.0e-04 # P-value threshold for beginning a region. Must have at least 1 decimal.
+min_pvalue: 1.0e-15 # P-value threshold for beginning a region. Must have at least 1 decimal.
 window_size: 200 # extend region if another p-value within this distance is found
 region_filter: 0.05 # post-filter reported regions
 
@@ -37,5 +37,5 @@ workers: 4 # Number of workers per job
 
 # Output parameters
 ############################
-out_directory: "results_dummy_stratified/" # Include trailing '/'
+out_directory: "results_testing/" # Include trailing '/'
 out_type: ".csv.gz" # .csv or .csv.gz

@@ -1,18 +1,18 @@
 rule run_combined_ewas:
     input:
         script = "scripts/ewas.R",
-        pheno_file = PHENO,
-        methyl_file = MVALS
+        pheno_file = CW.pheno,
+        methyl_file = CW.mvals
     params:
-        assoc_var = ASSOC,
-        stratified = STRATIFIED,
-        cs = CHUNK_SIZE,
-        pt = PROCESSING_TYPE,
-        n_workers = N_WORKERS,
-        o_dir = OUT_DIR,
-        o_type = OUT_TYPE
+        assoc_var = CW.assoc_var,
+        stratified = CW.stratified,
+        cs = CW.chunk_size,
+        pt = CW.processing_type,
+        n_workers = CW.n_workers,
+        o_dir = CW.out_dir,
+        o_type = CW.out_type
     output: 
-        raw_results
+        CW.raw_results
     conda:
         "../envs/ewas.yaml"
     shell:
@@ -33,15 +33,15 @@ rule run_combined_ewas:
 
 rule run_bacon:
     input:
-        in_file = raw_results,
+        in_file = CW.raw_results,
         script = "scripts/run_bacon.R"
     params:
-        o_dir = OUT_DIR,
-        o_type = OUT_TYPE,
+        o_dir = CW.out_dir,
+        o_type = CW.out_type,
         o_prefix = ""
     output: 
-        bacon_results,
-        bacon_plots
+        CW.bacon_results,
+        CW.bacon_plot_files()
     conda:
         "../envs/ewas.yaml"
     shell:
