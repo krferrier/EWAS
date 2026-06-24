@@ -69,7 +69,7 @@ class ConfigWizard(object):
         anno_cfg = cfg.get("dmr_annotation", {}) or {}
 
         self.dmr_anno_cache_dir: Path = _norm_path(
-            anno_cfg.get("cache_dir", cfg.get("dmr_anno_cache_dir", "resources/ucsc"))
+            anno_cfg.get("cache_dir", cfg.get("dmr_anno_cache_dir", "resources/dmr_annotation"))
         )
         self.dmr_anno_cache_tag: str = str(
             anno_cfg.get("cache_tag", cfg.get("dmr_anno_cache_tag", "latest"))

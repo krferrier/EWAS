@@ -10,6 +10,15 @@ parser <- argparse::ArgumentParser(description="Script for adding annotation dat
 parser$add_argument('--input-file', '-i',
                     required=TRUE,
                     help="Path to ewas results data")
+parser$add_argument('--EPIC-anno',
+                    required=TRUE,
+                    help="Path to hg38 EPIC annotation file from Wanding Zhou")
+parser$add_argument('--EPIC-snp',
+                    required=TRUE,
+                    help="Path to hg38 EPIC-SNP annotation file from Wanding Zhou")
+parser$add_argument('--eQTM-anno',
+                    required=TRUE,
+                    help="Path to eQTM annotation file")
 parser$add_argument('--out-dir',
                     required=TRUE,
                     help="Path to output directory")
@@ -37,20 +46,23 @@ out_dir <- args$out_dir
 stratified <- args$stratified
 assoc <- args$assoc
 out_type <- args$out_type
+hg38_file <- args$EPIC_anno
+snp_file <- args$EPIC_snp
+eqtm_file <- args$eQTM_anno
 
 # Read in EWAS summary statistics
 ewas <- fread(results)
 
 # Load annotation data
-hg38 <- fread("annotation_files/EPIC_hg38.tsv.gz")
+hg38 <- fread(hg38_file)
 hg38 <- hg38 %>% dplyr::rename(cpgid = "probeID") 
-cpg.to.rs <- fread("annotation_files/EPIC_snp_key.tsv.gz")
+cpg.to.rs <- fread(snp_file)
 cpg.to.rs <- cpg.to.rs %>%
     dplyr::select(probeID, snpID, snpChrm, snpEnd, snpRef,
                 snpAlt, GAN, GAC, GAF,distance) %>%
     distinct(probeID, .keep_all = T) %>% 
     dplyr::rename("cpgid" = "probeID")
-eqtm <- fread("annotation_files/eQTM_annotations_updated_HGNC_GRCh38.tsv") %>%
+eqtm <- fread(eqtm_file) %>%
   dplyr::select(SNPName, HGNCName_GRCh38) %>%
   filter(!is.na(HGNCName_GRCh38)) %>%
   rename(cpgid = SNPName, BIOS_eQTM_gene = HGNCName_GRCh38) %>%

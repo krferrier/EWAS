@@ -6,6 +6,8 @@ CW = ConfigWizard(config)
 
 validate(config, "config.schema.yml")
 
+dmr_targets = [CW.dmr_anno_final, CW.dmr_manhattan_plot]
+
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if CW.stratified:
     in_files = [CW.pheno, CW.mvals, CW.strat_raw_results(), CW.strat_bacon_results(),
@@ -16,14 +18,8 @@ else:
                 CW.bacon_plot_files(), CW.annotated_results,
                 CW.manhattan_qq_plot]
 
-dmr_infile = [CW.dmr_results_bed]
-dmr_outfiles = [CW.dmr_acf, CW.dmr_args, CW.dmr_fdr, CW.dmr_regions, CW.dmr_regions_p, CW.dmr_slk]
-dmr_anno_files = [CW.dmr_anno_final, CW.dmr_manhattan_plot]
-
 if CW.dmr:
-    in_files = in_files + dmr_infile + dmr_outfiles + dmr_anno_files
-else:
-    in_files = in_files
+    in_files.extend(dmr_targets)
 
 #---- BEGIN WORKFLOW ----#
 rule all:
