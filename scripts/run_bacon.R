@@ -14,9 +14,13 @@ suppressPackageStartupMessages({
        library(cowplot)
 })
 
-# Import modified bacon functions
-source("scripts/updated_bacon/bacon_rng_fix.R")
-source("scripts/updated_bacon/bacon_init_fix.R")
+# ggplot2 versions of the BACON diagnostic plots (ggtraces, ggposteriors,
+# ggfit). These are additions, not overrides -- they were never upstreamed.
+#
+# The former bacon_rng_fix.R and bacon_init_fix.R patches are gone: both were
+# contributed upstream and released in bacon 1.32.0 (Bioconductor 3.19), so the
+# globalSeed / parallelSeed arguments and the Bacon initialize() validation used
+# below come from the package itself. envs/ewas.yaml pins bacon >= 1.32.0.
 source("scripts/updated_bacon/modified_bacon_plots.R")
 
 # Define command line arguments

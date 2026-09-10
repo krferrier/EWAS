@@ -36,6 +36,11 @@ parser$add_argument('--cpg-islands',
                     required=TRUE,
                     help=paste("Path to the UCSC cpgIslandExt BED cache",
                                "(gzipped, headerless: chrom, start, end, name)"))
+# Shores extend 2 kb from the island and shelves a further 2 kb (so 2-4 kb from
+# the island). These are the standard definitions used across the methylation
+# array literature and by minfi / sesame, so they are not exposed in config.yml;
+# they remain arguments only so the boundaries can be varied for a sensitivity
+# check without editing the script.
 parser$add_argument('--shore-bp',
                     type="integer",
                     default=2000L,
@@ -175,6 +180,31 @@ eqtm <- fread(eqtm_file) %>%
 annotation <- left_join(gene_anno, islands, by = "cpgid") %>%
               left_join(eqtm, by = "cpgid")
 rm(gene_anno, islands)
+
+# Guard against a platform mismatch between the EWAS results and the manifest.
+# Every Zhou platform manifest has the same columns, so a wrong
+# annotation.array_platform does not fail loudly -- it just joins nothing.
+# EPICv2 and MSA probe IDs also carry a design suffix (cg00000029_TC21), so a
+# matrix built with those suffixes stripped will not match either.
+result_ids <- if (stratified == "no" || stratified == "False") {
+    ewas$cpgid
+} else {
+    ewas$MarkerName
+}
+matched <- sum(result_ids %in% annotation$cpgid)
+match_rate <- if (length(result_ids) > 0) matched / length(result_ids) else 0
+message(sprintf("Annotation match: %d of %d result rows (%.1f%%)",
+                matched, length(result_ids), 100 * match_rate))
+if (match_rate < 0.50) {
+    stop(sprintf(paste0(
+        "Only %.1f%% of result CpGs matched the annotation manifest.\n",
+        "  Check that annotation.array_platform in config.yml matches the array\n",
+        "  the M-value matrix came from, and that probe-ID suffixes agree\n",
+        "  (EPICv2 and MSA use IDs such as cg00000029_TC21)."), 100 * match_rate))
+} else if (match_rate < 0.95) {
+    warning(sprintf(
+        "Only %.1f%% of result CpGs matched the annotation manifest.", 100 * match_rate))
+}
 
 if(stratified=="no" | stratified == "False"){
     ewas <- left_join(ewas, annotation, by = "cpgid")

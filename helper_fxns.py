@@ -25,11 +25,10 @@ class ConfigWizard(object):
         "config", "mvals", "pheno", "assoc_var", "stratified", "strat_vars",
         "dmr", "genome_build", "min_pval", "win_size", "region_filter",
         "chunk_size", "processing_type", "n_workers", "out_dir", "out_type",
-        "_groups", "_bacon_plot_kinds", "dmr_anno_cache_dir", "dmr_anno_cache_tag",
+        "_groups", "_bacon_plot_kinds", "anno_cache_dir", "dmr_anno_cache_tag",
         "gene_table", "ucsc_database_base", "ucsc_gbdb_base",
-        "ewas_anno_cache_dir", "ewas_anno_platform", "zhou_release",
-        "gencode_release", "zhou_raw_base", "bios_eqtm_url",
-        "hgnc_complete_set_url", "cpg_island_shore_bp", "cpg_island_shelf_bp",
+        "array_platform", "zhou_release", "gencode_release", "zhou_raw_base",
+        "bios_eqtm_url", "hgnc_complete_set_url",
     )
 
     def __init__(self, cfg: Dict):
@@ -68,78 +67,58 @@ class ConfigWizard(object):
         self.out_dir: Path = _norm_path(cfg["out_directory"])
         self.out_type: str = str(cfg["out_type"])  # e.g. ".csv" or ".csv.gz"
 
-        # Optional DMR annotation-cache settings.
-        # config.schema.yml declares this block as `annotation`; earlier drafts
-        # used `dmr_annotation`. Accept either so existing config files keep
-        # working -- previously only `dmr_annotation` was read, so a value set
-        # under `annotation` (e.g. a pinned cache_tag) was silently ignored.
-        anno_cfg = cfg.get("dmr_annotation") or cfg.get("annotation") or {}
+        # --- Annotation settings (one block, one cache) ---
+        # `annotation` covers every annotation resource the workflow downloads:
+        # the Zhou Infinium manifest used for CpG-level annotation, the UCSC
+        # tracks used for CpG islands and for DMR gene annotation, and the
+        # eQTM/HGNC tables. They share a single cache root so there is one
+        # place to inspect, archive, or delete.
+        anno_cfg = cfg.get("annotation", {}) or {}
 
-        self.dmr_anno_cache_dir: Path = _norm_path(
-            anno_cfg.get("cache_dir", cfg.get("dmr_anno_cache_dir", "resources/dmr_annotation"))
+        self.anno_cache_dir: Path = _norm_path(
+            anno_cfg.get("cache_dir", "resources/annotation")
         )
-        self.dmr_anno_cache_tag: str = str(
-            anno_cfg.get("cache_tag", cfg.get("dmr_anno_cache_tag", "latest"))
-        )
-        self.gene_table: str = str(
-            anno_cfg.get("gene_table", cfg.get("gene_table", "refGene"))
-        )
+        self.dmr_anno_cache_tag: str = str(anno_cfg.get("cache_tag", "latest"))
+        self.gene_table: str = str(anno_cfg.get("gene_table", "refGene"))
         self.ucsc_database_base: str = str(
             anno_cfg.get(
-                "ucsc_database_base",
-                cfg.get("ucsc_database_base", "https://hgdownload.soe.ucsc.edu/goldenPath"),
+                "ucsc_database_base", "https://hgdownload.soe.ucsc.edu/goldenPath"
             )
         ).rstrip("/")
         self.ucsc_gbdb_base: str = str(
-            anno_cfg.get(
-                "ucsc_gbdb_base",
-                cfg.get("ucsc_gbdb_base", "https://hgdownload.soe.ucsc.edu/gbdb"),
-            )
+            anno_cfg.get("ucsc_gbdb_base", "https://hgdownload.soe.ucsc.edu/gbdb")
         ).rstrip("/")
 
-        # --- EWAS (CpG-level) annotation settings ---
         # Zhou lab Infinium annotation moved off zhouserver.research.chop.edu to
         # GitHub. Gene/promoter annotation now comes from the "coherent tables"
         # repo zhou-lab/InfiniumAnnotationData, pinned by git tag.
-        ewas_cfg = cfg.get("ewas_annotation", {}) or {}
-
-        self.ewas_anno_cache_dir: Path = _norm_path(
-            ewas_cfg.get("cache_dir", "resources/ewas_annotation")
-        )
-        self.ewas_anno_platform: str = str(ewas_cfg.get("platform", "EPIC"))
+        self.array_platform: str = str(anno_cfg.get("array_platform", "EPIC"))
         # Git tag in zhou-lab/InfiniumAnnotationData. "main" tracks the latest
         # release; a tag such as "v8.1" freezes it for a reproducible run.
-        self.zhou_release: str = str(ewas_cfg.get("zhou_release", "v8.1"))
+        self.zhou_release: str = str(anno_cfg.get("zhou_release", "v8.1"))
         # GENCODE release embedded in the manifest filename. This is genome
         # specific: hg38 uses v41, hg19 uses v26lift37.
-        self.gencode_release: str = str(ewas_cfg.get("gencode_release", "v41"))
+        self.gencode_release: str = str(anno_cfg.get("gencode_release", "v41"))
         self.zhou_raw_base: str = str(
-            ewas_cfg.get(
+            anno_cfg.get(
                 "zhou_raw_base",
                 "https://github.com/zhou-lab/InfiniumAnnotationData/raw",
             )
         ).rstrip("/")
         self.bios_eqtm_url: str = str(
-            ewas_cfg.get(
+            anno_cfg.get(
                 "bios_eqtm_url",
                 "https://molgenis26.gcc.rug.nl/downloads/biosqtlbrowser/"
                 "2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
             )
         )
         self.hgnc_complete_set_url: str = str(
-            ewas_cfg.get(
+            anno_cfg.get(
                 "hgnc_complete_set_url",
-                anno_cfg.get(
-                    "hgnc_complete_set_url",
-                    "https://storage.googleapis.com/public-download-files/hgnc/"
-                    "archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt",
-                ),
+                "https://storage.googleapis.com/public-download-files/hgnc/"
+                "archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt",
             )
         )
-        # CpG-island neighbourhood widths, in bp, used to call shores and
-        # shelves from the UCSC cpgIslandExt track.
-        self.cpg_island_shore_bp: int = int(ewas_cfg.get("cpg_island_shore_bp", 2000))
-        self.cpg_island_shelf_bp: int = int(ewas_cfg.get("cpg_island_shelf_bp", 2000))
 
         # Keep plot kinds centralized
         self._bacon_plot_kinds: List[str] = ["traces", "posteriors", "fit", "qqs"]
@@ -367,18 +346,28 @@ class ConfigWizard(object):
     def dmr_manhattan_plot(self) -> Path:
         return self._out("dmr", f"{self.assoc_var}_dmr_manhattan.jpg")
 
-    # ---------- Local EWAS annotation-cache resources ----------
+    # ---------- Annotation cache ----------
+    # One cache root (config: annotation.cache_dir), subdivided by source
+    # because each source is versioned differently:
+    #
+    #   <cache>/zhou/<platform>/<zhou_release>/   Zhou Infinium manifest
+    #   <cache>/ucsc/<genome>/<cache_tag>/        UCSC tracks
+    #   <cache>/eqtm/                             BIOS eQTM + HGNC
     @property
     def ewas_zhou_dir(self) -> Path:
         """Zhou annotation cache, keyed by platform and release tag."""
-        return self.ewas_anno_cache_dir.joinpath(
-            self.ewas_anno_platform, self.zhou_release
+        return self.anno_cache_dir.joinpath(
+            "zhou", self.array_platform, self.zhou_release
         )
+
+    @property
+    def eqtm_dir(self) -> Path:
+        return self.anno_cache_dir.joinpath("eqtm")
 
     @property
     def ewas_gene_manifest_name(self) -> str:
         return (
-            f"{self.ewas_anno_platform}.{self.genome_build}"
+            f"{self.array_platform}.{self.genome_build}"
             f".manifest.gencode.{self.gencode_release}.tsv.gz"
         )
 
@@ -391,18 +380,16 @@ class ConfigWizard(object):
     def ewas_gene_manifest_url(self) -> str:
         return (
             f"{self.zhou_raw_base}/{self.zhou_release}/Anno/"
-            f"{self.ewas_anno_platform}/{self.ewas_gene_manifest_name}"
+            f"{self.array_platform}/{self.ewas_gene_manifest_name}"
         )
 
     @property
     def bios_eqtm_txt(self) -> Path:
-        return self.ewas_anno_cache_dir.joinpath(
-            os.path.basename(self.bios_eqtm_url)
-        )
+        return self.eqtm_dir.joinpath(os.path.basename(self.bios_eqtm_url))
 
     @property
     def hgnc_complete_set_txt(self) -> Path:
-        return self.ewas_anno_cache_dir.joinpath(
+        return self.eqtm_dir.joinpath(
             os.path.basename(self.hgnc_complete_set_url)
         )
 
@@ -412,19 +399,24 @@ class ConfigWizard(object):
         stem = self.hgnc_complete_set_txt.name
         stem = stem.replace("hgnc_complete_set", "").strip("_").removesuffix(".txt")
         suffix = f"_{stem}" if stem else ""
-        return self.ewas_anno_cache_dir.joinpath(
-            f"eQTM_annotations_BIOS_HGNC{suffix}.tsv"
-        )
+        return self.eqtm_dir.joinpath(f"eQTM_annotations_BIOS_HGNC{suffix}.tsv")
 
     @property
     def ewas_annotation_manifest(self) -> Path:
         """Provenance record for the CpG-level annotation sources."""
         return self.ewas_zhou_dir.joinpath("annotation_manifest.tsv")
 
-    # ---------- Local DMR annotation-cache resources ----------
+    # ---------- UCSC track cache (CpG islands, refGene, HGNC) ----------
     @property
     def dmr_anno_resource_dir(self) -> Path:
-        return self.dmr_anno_cache_dir.joinpath(self.genome_build, self.dmr_anno_cache_tag)
+        return self.anno_cache_dir.joinpath(
+            "ucsc", self.genome_build, self.dmr_anno_cache_tag
+        )
+
+    @property
+    def cpg_island_manifest(self) -> Path:
+        """Provenance for the CpG-island track, which an EWAS-only run needs."""
+        return self.dmr_anno_resource_dir.joinpath("cpg_island_manifest.tsv")
 
     @property
     def dmr_refgene_txt(self) -> Path:

@@ -1,13 +1,13 @@
 # Overview
 
 ---
-This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by the Illumina EPIC (850k) methylation array. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either the standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
+This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by an Illumina Infinium methylation array. It was developed and tested against the EPIC (850k) array. The annotation step is platform-agnostic — every array Zhou publishes (EPIC, EPICv2, MSA, HM450, HM27, Mammal40, MM285) shares one manifest schema and is selectable via `annotation.array_platform` — but only EPIC has been exercised end to end, so treat the others as untested. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either the standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
 
 If your main predictor is categorical (with 2 levels), the values must be dummy coded to numerics. All other categorical covariates can remain as characters. The R glm() function is unable to use unordered categorical data as the main predictor because it cannot determine which of the values to use as the reference. The pipeline has not yet been tested with a main predictor that has more than two categorical levels. Automatic handling of predictors that are categorical/character values will be added in the next major update.
 
-Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
+Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. BACON >= 1.32.0 (Bioconductor 3.19) is required and pinned in `envs/ewas.yaml`: earlier versions lack the `globalSeed` and `parallelSeed` arguments this workflow relies on for reproducible Gibbs sampling. The ggplot2 diagnostic plots in `scripts/updated_bacon/modified_bacon_plots.R` are local additions to the package, not overrides. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
 
-The final EWAS results will be annotated with hg38/GRCh38 human genome build information collated by [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation). A manhattan and qq plot of the final EWAS results will also be output.
+The final EWAS results are annotated from three sources: gene and promoter assignments from the [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation) Infinium manifest, CpG-island context derived from the UCSC `cpgIslandExt` track, and whole-blood *cis*-eQTM genes from BIOS. A manhattan and qq plot of the final EWAS results is also output. See [Annotation Resources](#annotation-resources) for what each contributes and how it is versioned.
 
 This workflow can also perform differentially methylated region (DMR) analysis using the EWAS summary statistics. The DMR is conducted with the [comb-p](https://github.com/brentp/combined-pvalues) command-line tool. Parameters for performing the DMR can be modified in the config.yaml. 
 
@@ -56,6 +56,71 @@ Output files will be generated in the 'out_directory' specified in the config fi
 * manhattan and qq plots (.jpg)  
 * differentially methylated region results
 
+### *Annotation Resources*
+
+<a name="annotation-resources"></a>
+
+Everything the workflow downloads for annotation is configured in the single
+`annotation:` block of `config.yml` and cached under one root
+(`annotation.cache_dir`, default `resources/annotation/`). The cache is
+subdivided by source because each source is versioned differently:
+
+```
+resources/annotation/
+  zhou/<array_platform>/<zhou_release>/   Zhou Infinium manifest + provenance
+  ucsc/<genome_build>/<cache_tag>/        UCSC tracks + provenance
+  eqtm/                                   BIOS eQTM and HGNC tables
+```
+
+Each fetch rule writes a small `*_manifest.tsv` beside the files it downloads,
+recording the source URL, version and timestamp, so a results directory can be
+traced back to the exact annotation used.
+
+| Source | Supplies | Fetched by | Needed when |
+|--------|----------|------------|-------------|
+| Zhou Infinium manifest (`<platform>.<genome>.manifest.gencode.<release>.tsv.gz`) | `genesUniq`, `geneNames`, `transcriptTypes`, `transcriptIDs`, `distToTSS`, probe coordinates | `get_annotation_data` | always |
+| UCSC `cpgIslandExt` | `CGI`, `CGIposition` (Island / N_Shore / S_Shore / N_Shelf / S_Shelf) | `fetch_cpg_island_cache` | always |
+| BIOS *cis*-eQTM + HGNC | `BIOS_eQTM_genes` | `get_annotation_data`, `prep_bios_eqtm_annotation` | always |
+| UCSC `refGene` + HGNC BigBed | DMR gene annotation | `fetch_dmr_annotation_cache` | only when `dmr_analysis: "yes"` |
+
+#### Which settings matter
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `array_platform` | `EPIC` | **Must match the probe IDs in your M-value matrix.** EPIC, HM450, HM27 and Mammal40 use bare IDs (`cg00000029`); EPICv2 and MSA use design-suffixed IDs (`cg00000029_TC21`). All platforms share the same manifest columns, so a mismatch does not fail loudly on its own — `annotation.R` therefore reports the match rate and aborts below 50%. |
+| `zhou_release` | `v8.1` | Git tag in `zhou-lab/InfiniumAnnotationData`. Use `main` to track the newest release; pin a tag for a reproducible run. |
+| `gencode_release` | `v41` | Tied to `genome_build`: hg38 &rarr; `v41`, hg19 &rarr; `v26lift37`, mm10 &rarr; `vM25`, mm39 &rarr; `vM31`. |
+| `cache_tag` | `latest` | UCSC track cache version. Set an ISO date (e.g. `2026-06-08`) for a manuscript run so the cache path records when the tracks were pulled. |
+
+The remaining keys are base URLs and rarely need changing. The whole block may
+be omitted; `helper_fxns.ConfigWizard` supplies the same values as defaults.
+
+#### Notes on the annotation sources
+
+Zhou's resources moved off `zhouserver.research.chop.edu` and were reorganised
+around a versioned "coherent" release (currently v8.1). Two consequences matter
+here. First, GENCODE v41 no longer carries the `CGI` and `CGIposition` columns
+that v36 supplied, so island context is recomputed from the UCSC track — which
+is where Zhou's own CGI annotation was derived from. Re-deriving reproduces the
+KYCG v8.1 CGI bitset for 99.90% of probes and the legacy island coordinate
+strings for 99.99%, and the residual differences are probes the frozen legacy
+table missed. Shores extend 2 kb from an island and shelves a further 2 kb, the
+standard definitions; they are arguments to `annotation.R` rather than config
+settings, since there is no reason to vary them outside a sensitivity check.
+
+Second, the old `EPIC.hg38.commonsnp.tsv.gz` SNP annotation has no successor in
+v8.1 and is no longer used. The v8.1 `snp.tsv.gz` is not a replacement — it is
+the Infinium-I colour-channel/`formatVCF` table, with an rsID on only 0.9% of
+its rows and no allele frequencies. Probes affected by common variants are
+expected to be masked before the M-value matrix reaches this workflow.
+
+#### Network access
+
+The fetch rules require outbound access to `github.com`,
+`hgdownload.soe.ucsc.edu`, `molgenis26.gcc.rug.nl` and
+`storage.googleapis.com`. All downloads are cached, so only the first run needs
+them.
+
 ### *Parallelization Parameters*
 
 The rule 'ewas' first chunks the methylation dataset into sets of CpGs where the length of each set is specified by the parameter `chunks` in the config file (default of 1000 CpGs if a number is not provided). Then, linear regressions are run for each chunk and the results combined back into one dataframe once all chunks have been processed. Run sequentially, this step could take several hours. However, each chunk can be processed in parallel to reduce the total computation time.
@@ -68,9 +133,10 @@ If you are performing a stratified analysis, you can have each strata processed 
 
 If you do not want DMR results, you can simply change the `dmr_analysis` parameter to "no".
 
+Note that `genome_build` is not a DMR-only setting: it selects both the UCSC tracks and the Zhou manifest, so it applies whether or not DMR analysis is run.
+
 | Parameter | Default value | Description                                                          |
 |-----------|---------------|----------------------------------------------------------------------|
-| genome_build | hg38          | genome build from USCS to use for adding gene annotations to results |
 |min_pvalue | 1e-04         | P-value threshold for beginning a region                             |
 | window_size | 200           | Maximum distance to search for another CpG < min_pvalue              |
 | region_filter | 0.05          | max adjusted region-level p-value to be reported                     |

@@ -60,9 +60,11 @@ rule fetch_cpg_island_cache:
     # and shelves under one definition, refreshed by the same cache_tag.
     output:
         cpg_txt = CW.dmr_cpg_island_txt,
-        cpg_bed = CW.dmr_cpg_island_bed
+        cpg_bed = CW.dmr_cpg_island_bed,
+        manifest = CW.cpg_island_manifest
     params:
         genome = CW.genome_build,
+        cache_tag = CW.dmr_anno_cache_tag,
         ucsc_database_base = CW.ucsc_database_base
     conda:
         "../envs/dmr_annotation.yaml"
@@ -79,6 +81,11 @@ rule fetch_cpg_island_cache:
           | sort -k1,1 -k2,2n \
           | gzip -c > {output.cpg_bed}.tmp
         mv {output.cpg_bed}.tmp {output.cpg_bed}
+
+        {{
+          echo -e "resource\tgenome_build\tcache_tag\tsource\tcreated"
+          echo -e "cpgIslandExt\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz\t$(date -Iseconds)"
+        }} > {output.manifest}
         """
 
 rule fetch_dmr_annotation_cache:
@@ -128,7 +135,6 @@ rule fetch_dmr_annotation_cache:
         {{
           echo -e "resource\tgenome_build\tcache_tag\tsource\tcreated"
           echo -e "{params.gene_table}\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/{params.gene_table}.txt.gz\t$(date -Iseconds)"
-          echo -e "cpgIslandExt\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz\t$(date -Iseconds)"
           echo -e "hgnc_bigbed\t{params.genome}\t{params.cache_tag}\t{params.ucsc_gbdb_base}/{params.genome}/hgnc/hgnc.bb\t$(date -Iseconds)"
         }} > {output.manifest}
         """

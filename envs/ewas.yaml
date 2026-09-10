@@ -11,7 +11,11 @@ dependencies:
   # R:
   - r-essentials  # includes tidyverse, devtools, Rcpp, etc.
   - r-biocmanager
-  - bioconductor-bacon
+  # >=1.32.0 (Bioconductor 3.19) is the first release containing the upstreamed
+  # initialize() and BiocParallel RNG fixes (mvaniterson/bacon PR #1, 2024-04).
+  # scripts/run_bacon.R calls bacon(globalSeed=, parallelSeed=), which only
+  # exists from that release on.
+  - bioconductor-bacon >=1.32.0
   - bioconductor-biocparallel
   - r-argparse
   - r-qqman

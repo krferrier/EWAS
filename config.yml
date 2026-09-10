@@ -1,63 +1,142 @@
-# Input data
-############################
+# =============================================================================
+# EWAS + DMR workflow configuration
+#
+# Every setting is tagged so you know how much attention it needs:
+#
+#   [REQUIRED]  Describes your data or your question. Always set it.
+#   [CHECK]     Has a sensible default, but the right value depends on your
+#               study design. Read the note before accepting it.
+#   [DEFAULT]   Leave alone unless something upstream has changed.
+#
+# Run from the repo root:  snakemake --configfile config.yml
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Input data                                                          [REQUIRED]
+# -----------------------------------------------------------------------------
+# mvals: CpG-by-sample matrix of M-values. First column is the CpG identifier;
+#        remaining column names must match the sample IDs in `pheno`. The probe
+#        IDs must match the array named in annotation.array_platform (see the
+#        note there about EPICv2/MSA suffixes).
+# pheno: one row per sample, with the association variable, any stratification
+#        variables, and all model covariates.
 mvals: "data/mvals.csv.gz"
 pheno: "data/pheno.csv"
 
-# EWAS model parameters
-############################
+
+# -----------------------------------------------------------------------------
+# EWAS model                                                          [REQUIRED]
+# -----------------------------------------------------------------------------
+# association_variable: column in `pheno` to test each CpG against.
 association_variable: "BMI"
-stratified_ewas: "yes" # yes or no
-stratify_variables: ["sex"] # If yes, list which variable(s) to stratify on
 
-# Differentially Methylated Region (DMR) Analysis 
-#################################################
-dmr_analysis: "yes" # yes or no
-min_pvalue: 1.0e-4 # P-value threshold for beginning a region. Must have at least 1 decimal.
-window_size: 200 # extend region if another p-value within this distance is found
-region_filter: 0.05 # post-filter reported regions
+# stratified_ewas: "yes" runs a separate EWAS per stratum and meta-analyses the
+#   strata with METAL. "no" runs a single combined model.
+#   With "yes" the annotated results key on MarkerName and P-value; with "no"
+#   they key on cpgid and bacon.pval.
+stratified_ewas: "yes"
 
-# DMR annotation
-##################
-genome_build: "hg38" # genome build from USCS
+# stratify_variables: only used when stratified_ewas is "yes". Listing more than
+#   one variable crosses them, so every observed combination becomes a stratum.
+stratify_variables: ["sex"]
+
+
+# -----------------------------------------------------------------------------
+# Differentially Methylated Region (DMR) analysis
+# -----------------------------------------------------------------------------
+# dmr_analysis: "no" skips comb-p and everything downstream of it.   [REQUIRED]
+dmr_analysis: "yes"
+
+# comb-p parameters.                                                    [CHECK]
+# min_pvalue:    seed threshold -- a region starts at a CpG below this p-value.
+#                Must be written with a decimal point (1.0e-4, not 1e-4) so the
+#                schema reads it as a number.
+# window_size:   extend the region while another qualifying CpG lies within this
+#                many bp. Tighten for dense arrays, loosen for sparse ones.
+# region_filter: post-filter on the reported region p-value.
+min_pvalue: 1.0e-4
+window_size: 200
+region_filter: 0.05
+
+
+# -----------------------------------------------------------------------------
+# Genome build                                                        [REQUIRED]
+# -----------------------------------------------------------------------------
+# Selects both the UCSC tracks and the Zhou manifest. If you change this, also
+# change annotation.gencode_release below -- they are tied together.
+genome_build: "hg38"
+
+
+# -----------------------------------------------------------------------------
+# Annotation resources                                                 [DEFAULT]
+# -----------------------------------------------------------------------------
+# Every downloaded annotation file lives under one cache root, subdivided by
+# source because each is versioned differently:
+#
+#   <cache_dir>/zhou/<array_platform>/<zhou_release>/   Zhou Infinium manifest
+#   <cache_dir>/ucsc/<genome_build>/<cache_tag>/        UCSC tracks
+#   <cache_dir>/eqtm/                                   BIOS eQTM + HGNC
+#
+# The whole block may be deleted; helper_fxns.ConfigWizard supplies these same
+# values as defaults. It is spelled out here so the provenance is visible.
 annotation:
-  method: local
-  gene_table: refGene
-  # Use "latest" during active development.
-  # For a manuscript/reproducible release, set this to a fixed date like "2026-06-08".
-  cache_tag: latest
+  cache_dir: "resources/annotation"
+
+  # -- Zhou Infinium annotation (CpG-level gene/promoter annotation) --
+  # array_platform must match the probe IDs in `mvals`.               [REQUIRED]
+  #   EPIC, HM450, HM27, Mammal40 -> bare IDs      (cg00000029)
+  #   EPICv2, MSA                 -> suffixed IDs  (cg00000029_TC21)
+  # All platforms share the same 10-column manifest schema, but if your matrix
+  # has stripped the EPICv2/MSA suffix the join will silently miss; annotation.R
+  # warns when the match rate is low.
+  array_platform: "EPIC"
+
+  # Git tag in zhou-lab/InfiniumAnnotationData. "main" tracks the latest
+  # release; pin to a tag such as "v8.1" for a reproducible run.       [DEFAULT]
+  zhou_release: "v8.1"
+
+  # GENCODE release in the manifest filename, tied to genome_build:    [CHECK]
+  #   hg38 -> v41   hg19 -> v26lift37   mm10 -> vM25   mm39 -> vM31
+  gencode_release: "v41"
+
+  zhou_raw_base: "https://github.com/zhou-lab/InfiniumAnnotationData/raw"
+
+  # -- UCSC tracks (CpG islands for both EWAS and DMR; refGene and HGNC
+  #    only when dmr_analysis is "yes") --
+  # cache_tag: "latest" re-uses whatever was downloaded first. For a manuscript
+  # run, set an ISO date (e.g. "2026-06-08") so the cache path records when the
+  # tracks were pulled.                                                  [CHECK]
+  cache_tag: "latest"
+  gene_table: "refGene"
   ucsc_database_base: "https://hgdownload.soe.ucsc.edu/goldenPath"
   ucsc_gbdb_base: "https://hgdownload.soe.ucsc.edu/gbdb"
-  hgnc_complete_set_url: "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt"
 
-# EWAS (CpG-level) annotation
-##############################
-# Zhou lab Infinium annotation: https://zwdzwd.github.io/InfiniumAnnotation
-# The zhouserver.research.chop.edu URLs used previously are retired. Gene and
-# promoter annotation now comes from zhou-lab/InfiniumAnnotationData on GitHub.
-ewas_annotation:
-  platform: "EPIC" # EPIC, EPICv2, MSA, HM450, HM27, Mammal40
-  # Git tag in zhou-lab/InfiniumAnnotationData. Use "main" to track the latest
-  # release; pin to a tag such as "v8.1" for a reproducible run.
-  zhou_release: "v8.1"
-  # GENCODE release in the manifest filename. Genome specific: hg38 -> v41,
-  # hg19 -> v26lift37.
-  gencode_release: "v41"
-  zhou_raw_base: "https://github.com/zhou-lab/InfiniumAnnotationData/raw"
-  cache_dir: "resources/ewas_annotation"
-  # CpG islands are called from the UCSC cpgIslandExt cache shared with the DMR
-  # rules, because GENCODE v41 no longer carries CGI / CGIposition columns.
-  cpg_island_shore_bp: 2000
-  cpg_island_shelf_bp: 2000
+  # -- eQTM annotation --                                              [DEFAULT]
+  # BIOS whole-blood cis-eQTMs (FDR 0.05), gene symbols resolved against a
+  # dated HGNC release so the mapping is reproducible.
   bios_eqtm_url: "https://molgenis26.gcc.rug.nl/downloads/biosqtlbrowser/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt"
   hgnc_complete_set_url: "https://storage.googleapis.com/public-download-files/hgnc/archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt"
 
-# Parallelization parameters
-############################
-chunk_size: 5000 # number of methylation sites per chunk 
-processing_type: "cluster" # sequential, multisession, multicore, or cluster
-workers: 4 # Number of workers per job
 
-# Output parameters
-############################
-out_directory: "results_testing/" # Include trailing '/'
-out_type: ".csv.gz" # .csv or .csv.gz
+# -----------------------------------------------------------------------------
+# Parallelization                                                         [CHECK]
+# -----------------------------------------------------------------------------
+# chunk_size:      CpGs per EWAS chunk. Larger uses more memory per worker.
+# processing_type: sequential | multisession | multicore | cluster.
+#                  Use "cluster" when Snakemake submits to a scheduler,
+#                  "multicore" on a single machine, "sequential" to debug.
+# workers:         workers per job. Keep at or below the cores you give
+#                  Snakemake (profiles/default/config.v8+.yaml sets cores).
+chunk_size: 5000
+processing_type: "cluster"
+workers: 4
+
+
+# -----------------------------------------------------------------------------
+# Output                                                              [REQUIRED]
+# -----------------------------------------------------------------------------
+# out_directory: must end in a trailing slash.
+# out_type:      ".csv.gz" is recommended for genome-wide results.
+out_directory: "results_testing/"
+out_type: ".csv.gz"

@@ -26,7 +26,7 @@ rule get_annotation_data:
         gene_url = CW.ewas_gene_manifest_url,
         eqtm_url = CW.bios_eqtm_url,
         hgnc_url = CW.hgnc_complete_set_url,
-        platform = CW.ewas_anno_platform,
+        platform = CW.array_platform,
         genome = CW.genome_build,
         release = CW.zhou_release,
         gencode = CW.gencode_release
@@ -81,9 +81,7 @@ rule add_annotation:
         o_dir = CW.out_dir,
         strat = CW.stratified,
         assoc = CW.assoc_var,
-        o_type = CW.out_type,
-        shore_bp = CW.cpg_island_shore_bp,
-        shelf_bp = CW.cpg_island_shelf_bp
+        o_type = CW.out_type
     output: 
         CW.annotated_results
     conda:
@@ -98,7 +96,5 @@ rule add_annotation:
         --out-dir {params.o_dir} \
         --stratified {params.strat} \
         --assoc {params.assoc} \
-        --out-type {params.o_type} \
-        --shore-bp {params.shore_bp} \
-        --shelf-bp {params.shelf_bp}
+        --out-type {params.o_type}
         """
