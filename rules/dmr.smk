@@ -1,4 +1,4 @@
-localrules: fetch_dmr_annotation_cache
+localrules: fetch_cpg_island_cache, fetch_dmr_annotation_cache
 
 rule make_bed:
     input: 
@@ -53,13 +53,41 @@ rule run_dmr:
 		fi
         """
 
+rule fetch_cpg_island_cache:
+    # UCSC CpG-island track, split out of the DMR cache so the CpG-level EWAS
+    # annotation can depend on it without also pulling refGene and the HGNC
+    # BigBed. Both the EWAS and DMR outputs therefore report islands, shores
+    # and shelves under one definition, refreshed by the same cache_tag.
+    output:
+        cpg_txt = CW.dmr_cpg_island_txt,
+        cpg_bed = CW.dmr_cpg_island_bed
+    params:
+        genome = CW.genome_build,
+        ucsc_database_base = CW.ucsc_database_base
+    conda:
+        "../envs/dmr_annotation.yaml"
+    shell:
+        """
+        wget -O {output.cpg_txt}.tmp \
+          {params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz
+        mv {output.cpg_txt}.tmp {output.cpg_txt}
+
+        # cpgIslandExt fields:
+        # 1 bin, 2 chrom, 3 chromStart, 4 chromEnd, 5 name, ...
+        zcat {output.cpg_txt} \
+          | awk 'BEGIN{{FS=OFS="\t"}} {{print $2,$3,$4,$5}}' \
+          | sort -k1,1 -k2,2n \
+          | gzip -c > {output.cpg_bed}.tmp
+        mv {output.cpg_bed}.tmp {output.cpg_bed}
+        """
+
 rule fetch_dmr_annotation_cache:
+    input:
+        cpg_bed = rules.fetch_cpg_island_cache.output.cpg_bed
     output:
         refgene_txt = CW.dmr_refgene_txt,
-        cpg_txt = CW.dmr_cpg_island_txt,
         hgnc_bb = CW.dmr_hgnc_bb,
         refgene_bed = CW.dmr_refgene_bed,
-        cpg_bed = CW.dmr_cpg_island_bed,
         hgnc_bed = CW.dmr_hgnc_bed,
         manifest = CW.dmr_annotation_manifest
     params:
@@ -76,10 +104,6 @@ rule fetch_dmr_annotation_cache:
           {params.ucsc_database_base}/{params.genome}/database/{params.gene_table}.txt.gz
         mv {output.refgene_txt}.tmp {output.refgene_txt}
 
-        wget -O {output.cpg_txt}.tmp \
-          {params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz
-        mv {output.cpg_txt}.tmp {output.cpg_txt}
-
         wget -O {output.hgnc_bb}.tmp \
           {params.ucsc_gbdb_base}/{params.genome}/hgnc/hgnc.bb
         mv {output.hgnc_bb}.tmp {output.hgnc_bb}
@@ -91,14 +115,6 @@ rule fetch_dmr_annotation_cache:
           | sort -k1,1 -k2,2n \
           | gzip -c > {output.refgene_bed}.tmp
         mv {output.refgene_bed}.tmp {output.refgene_bed}
-
-        # cpgIslandExt fields:
-        # 1 bin, 2 chrom, 3 chromStart, 4 chromEnd, 5 name, ...
-        zcat {output.cpg_txt} \
-          | awk 'BEGIN{{FS=OFS="\t"}} {{print $2,$3,$4,$5}}' \
-          | sort -k1,1 -k2,2n \
-          | gzip -c > {output.cpg_bed}.tmp
-        mv {output.cpg_bed}.tmp {output.cpg_bed}
 
         # UCSC HGNC BigBed fields:
         # 1 chrom, 2 chromStart, 3 chromEnd, 4 HGNC ID,
@@ -123,7 +139,7 @@ rule annotate_dmrs:
         ewas_bed = rules.make_bed.output,
         hgnc = rules.fetch_dmr_annotation_cache.output.hgnc_bed,
         refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
-        cpgIslandExt = rules.fetch_dmr_annotation_cache.output.cpg_bed
+        cpgIslandExt = rules.fetch_cpg_island_cache.output.cpg_bed
     params:
         o_prefix = CW.dmr_out_dir,
         assoc = CW.assoc_var

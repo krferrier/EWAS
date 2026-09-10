@@ -125,6 +125,67 @@ properties:
     # Keep permissive initially in case you later add annotation settings.
     additionalProperties: true
 
+  # EWAS (CpG-level) annotation
+  ewas_annotation:
+    type: object
+    properties:
+      platform:
+        type: string
+        enum:
+          - EPIC
+          - EPICv2
+          - MSA
+          - HM450
+          - HM27
+          - Mammal40
+        description: "Infinium platform whose Zhou annotation tables are fetched."
+
+      zhou_release:
+        type: string
+        pattern: "^(main|v[0-9]+(\\.[0-9]+)?)$"
+        description: >
+          Git tag in zhou-lab/InfiniumAnnotationData. Use 'main' during
+          development or a tag such as v8.1 for a fixed reproducible release.
+
+      gencode_release:
+        type: string
+        minLength: 1
+        description: >
+          GENCODE release embedded in the manifest filename. Genome specific:
+          hg38 uses v41, hg19 uses v26lift37.
+
+      zhou_raw_base:
+        type: string
+        pattern: "^https://.+"
+        description: "Base URL for raw downloads from the Zhou annotation repo."
+
+      cache_dir:
+        type: string
+        minLength: 1
+        description: "Local cache directory for CpG-level annotation resources."
+
+      cpg_island_shore_bp:
+        type: integer
+        minimum: 0
+        description: "Width in bp of the shore flanking each CpG island."
+
+      cpg_island_shelf_bp:
+        type: integer
+        minimum: 0
+        description: "Width in bp of the shelf beyond each shore."
+
+      bios_eqtm_url:
+        type: string
+        pattern: "^https://.+"
+        description: "URL for the BIOS cis-eQTM CpG-level table."
+
+      hgnc_complete_set_url:
+        type: string
+        pattern: "^https://.+"
+        description: "URL for the HGNC complete gene-set download."
+
+    additionalProperties: true
+
   # Parallelization
   chunk_size:
     type: integer

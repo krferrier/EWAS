@@ -29,6 +29,28 @@ annotation:
   ucsc_gbdb_base: "https://hgdownload.soe.ucsc.edu/gbdb"
   hgnc_complete_set_url: "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt"
 
+# EWAS (CpG-level) annotation
+##############################
+# Zhou lab Infinium annotation: https://zwdzwd.github.io/InfiniumAnnotation
+# The zhouserver.research.chop.edu URLs used previously are retired. Gene and
+# promoter annotation now comes from zhou-lab/InfiniumAnnotationData on GitHub.
+ewas_annotation:
+  platform: "EPIC" # EPIC, EPICv2, MSA, HM450, HM27, Mammal40
+  # Git tag in zhou-lab/InfiniumAnnotationData. Use "main" to track the latest
+  # release; pin to a tag such as "v8.1" for a reproducible run.
+  zhou_release: "v8.1"
+  # GENCODE release in the manifest filename. Genome specific: hg38 -> v41,
+  # hg19 -> v26lift37.
+  gencode_release: "v41"
+  zhou_raw_base: "https://github.com/zhou-lab/InfiniumAnnotationData/raw"
+  cache_dir: "resources/ewas_annotation"
+  # CpG islands are called from the UCSC cpgIslandExt cache shared with the DMR
+  # rules, because GENCODE v41 no longer carries CGI / CGIposition columns.
+  cpg_island_shore_bp: 2000
+  cpg_island_shelf_bp: 2000
+  bios_eqtm_url: "https://molgenis26.gcc.rug.nl/downloads/biosqtlbrowser/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt"
+  hgnc_complete_set_url: "https://storage.googleapis.com/public-download-files/hgnc/archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt"
+
 # Parallelization parameters
 ############################
 chunk_size: 5000 # number of methylation sites per chunk 
