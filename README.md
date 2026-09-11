@@ -7,7 +7,9 @@ If your main predictor is categorical (with 2 levels), the values must be dummy 
 
 Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. BACON >= 1.32.0 (Bioconductor 3.19) is required and pinned in `envs/ewas.yaml`: earlier versions lack the `globalSeed` and `parallelSeed` arguments this workflow relies on for reproducible Gibbs sampling. The ggplot2 diagnostic plots in `scripts/updated_bacon/modified_bacon_plots.R` are local additions to the package, not overrides. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
 
-The final EWAS results are annotated from three sources: gene and promoter assignments from the [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation) Infinium manifest, CpG-island context derived from the UCSC `cpgIslandExt` track, and whole-blood *cis*-eQTM genes from BIOS. A manhattan and qq plot of the final EWAS results is also output. See [Annotation Resources](#annotation-resources) for what each contributes and how it is versioned.
+The final EWAS results are annotated from three sources: gene and promoter assignments from the [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation) Infinium manifest, CpG-island context derived from the UCSC `cpgIslandExt` track, and whole-blood *cis*-eQTM genes from BIOS. A manhattan and qq plot of the final EWAS results is also output. See [Annotation Resources](#annotation-resources) for what each contributes and how it is versioned, and [Annotated Results Columns](#annotated-results-columns) for the output file layout.
+
+The significant CpG set is then assessed automatically for functional, pathway and trait enrichment — chromatin states and other KYCG feature sets, GO and KEGG terms, and published EWAS Atlas trait associations — all tested against the CpGs actually analysed rather than the whole array. See [Functional Enrichment](#functional-enrichment).
 
 This workflow can also perform differentially methylated region (DMR) analysis using the EWAS summary statistics. The DMR is conducted with the [comb-p](https://github.com/brentp/combined-pvalues) command-line tool. Parameters for performing the DMR can be modified in the config.yaml. 
 
@@ -116,10 +118,135 @@ expected to be masked before the M-value matrix reaches this workflow.
 
 #### Network access
 
-The fetch rules require outbound access to `github.com`,
+The fetch rules require outbound access to `github.com`, `api.github.com`,
+`ngdc.cncb.ac.cn`,
 `hgdownload.soe.ucsc.edu`, `molgenis26.gcc.rug.nl` and
 `storage.googleapis.com`. All downloads are cached, so only the first run needs
 them.
+
+### *Annotated Results Columns*
+
+<a name="annotated-results-columns"></a>
+
+`<out_directory>/<association_variable>_ewas_annotated_results<out_type>`, one row
+per tested CpG, sorted by adjusted p-value.
+
+The identifier and statistic columns differ by EWAS mode: an unstratified run
+keys on `cpgid` with BACON columns, a stratified run keys on `MarkerName` with
+METAL columns.
+
+| Column | Source | Meaning |
+|--------|--------|---------|
+| `cpgid` *(unstratified)* | EWAS | Probe identifier. |
+| `MarkerName` *(stratified)* | METAL | Probe identifier. |
+| `bacon.es`, `bacon.se`, `bacon.statistic`, `bacon.pval` *(unstratified)* | BACON | Bias- and inflation-adjusted effect size, standard error, test statistic and p-value. |
+| `lambda`, `b.lambda` *(unstratified)* | QCEWAS | Genomic inflation before and after BACON adjustment. |
+| `Effect`, `StdErr`, `P-value`, `Direction` *(stratified)* | METAL | Inverse-variance weighted meta-analysis across strata. `Direction` gives one character per stratum. |
+| `CpG_chrm`, `CpG_beg`, `CpG_end` | Zhou manifest | Probe coordinates on `genome_build`, 0-based half-open. |
+| `probe_strand` | Zhou manifest | Strand the probe interrogates. |
+| `genesUniq` | Zhou manifest | Unique gene symbols the probe maps to, semicolon separated. |
+| `geneNames` | Zhou manifest | Gene symbol per overlapping transcript, aligned with `transcriptIDs`. |
+| `transcriptTypes` | Zhou manifest | Biotype per transcript (`protein_coding`, `lncRNA`, ...). |
+| `transcriptIDs` | Zhou manifest | Ensembl transcript identifiers. |
+| `distToTSS` | Zhou manifest | Signed distance in bp to each transcript's TSS; negative is upstream. |
+| `CGI` | UCSC `cpgIslandExt` | Coordinates of the nearest CpG island, e.g. `CGI:chr1:28735-29737`. Empty in open sea. |
+| `CGIposition` | derived | `Island`, `N_Shore`, `S_Shore`, `N_Shelf`, `S_Shelf`, or empty for open sea. Shores span 2 kb from the island, shelves a further 2 kb. |
+| `BIOS_eQTM_genes` | BIOS | Genes whose expression correlates with methylation at this CpG in whole blood (FDR 0.05), HGNC-resolved. |
+| `chromHMM_state` | KYCG | Roadmap/ENCODE 18-state chromatin state: `TssA`, `TssFlnk`, `TssFlnkU`, `TssFlnkD`, `Tx`, `TxWk`, `EnhG1`, `EnhG2`, `EnhA1`, `EnhA2`, `EnhWk`, `ZNF/Rpts`, `Het`, `TssBiv`, `EnhBiv`, `ReprPC`, `ReprPCWk`, `Quies`. |
+| `PMD` | KYCG | `commonPMD` (partially methylated domain) or `commonHMD` (highly methylated domain). |
+| `AB_compartment` | KYCG | Hi-C compartment: `A1`, `A2` (open/active) or `B1`-`B4` (closed/inactive). |
+| `repeat_class` | KYCG | RepeatMasker class: `LINE`, `SINE`, `LTR`, `Satellite`, `Simple_repeat` and others. Semicolon separated where a probe falls in more than one. |
+| `imprinting_DMR` | KYCG | `ImprintingDMR` when the probe sits in a known imprinting control region. |
+| `CTCF_binding` | KYCG | `CTCFbind` when the probe overlaps a CTCF binding site. |
+| `ENCODE_blacklist` | KYCG | `Blacklist` when the probe falls in an ENCODE blacklist region. Treat such hits with suspicion. |
+
+KYCG columns appear only when the configured `array_platform` publishes those
+sets; a missing set is skipped rather than erroring. An empty value means the
+probe is not annotated for that feature, not that the feature is absent.
+
+SNP annotation is deliberately not included; see
+[Notes on the annotation sources](#notes-on-the-annotation-sources).
+
+### *Functional Enrichment*
+
+<a name="functional-enrichment"></a>
+
+Three independent tests of the significant CpG set, controlled by the
+`enrichment:` block in `config.yml` and written to
+`<out_directory>/enrichment/`. Set `run: "no"` to skip all three.
+
+**The background is the set of CpGs actually tested, never the full array.**
+Probes are dropped before an EWAS for mapping quality, masking and QC, and
+those exclusions are not uniform across the genome. Testing against the whole
+manifest would score that removal pattern as enrichment. The counts here will
+therefore not match tools that default to the array as the universe.
+
+A test that cannot run writes an empty table naming the reason in its log
+rather than failing the workflow.
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `run` | `yes` | `no` skips all three rules. |
+| `significance` | `fdr` | `fdr` (Benjamini-Hochberg), `bonferroni`, or `nominal` for the raw p-value. |
+| `threshold` | `0.05` | Cutoff on the adjusted (or raw) p-value that defines the significant set. |
+| `min_set_size` | `20` | Features, terms and traits with fewer probes in the background are not tested. |
+| `ewas_atlas_url` | NGDC | EWAS Atlas association table, about 100 MB, cached on first use. |
+
+#### `<assoc>_enrichment_features.tsv`
+
+The significant set against the KYCG knowledgebases from the same pinned v8.1
+release the annotation uses: chromatin states, 82 histone marks, 1188
+transcription-factor binding sets, repeats, PMDs, A/B compartments, metagene
+position and CpG islands.
+
+Implemented with `yame`: the query is packed as a format-6 record carrying two
+bits per probe, one for the universe and one for the set, so the restricted
+background is applied inside the overlap counting. `yame summary` then reports
+the 2x2 per feature and the hypergeometric p-value and FDR are computed in R.
+
+Columns: `knowledgebase`, `feature`, `n_universe`, `n_significant`,
+`n_in_feature`, `n_overlap`, `expected`, `fold_enrichment`,
+`log2_odds_ratio`, `p_value`, `fdr`.
+
+Reading it: transcription-factor sets are heavily correlated with one another
+and with active promoters, so a promoter-shifted result will light up hundreds
+of TFBS rows at once. Treat the knowledgebase as the unit of interpretation,
+not the individual row, and look at `fold_enrichment` alongside the FDR.
+
+#### `<assoc>_enrichment_pathways.tsv`
+
+GO and KEGG via `missMethyl::gometh`, which corrects for the number of probes
+per gene. This matters: a gene covered by 80 probes is far likelier to pick up
+a significant CpG than one covered by 3, and an uncorrected gene-set test
+reports that coverage as biology.
+
+The cost is that missMethyl maps probes with Illumina's own annotation
+packages, so **only 450K, EPIC and EPICv2 are supported**. On any other
+`array_platform` this rule writes an empty table and says so; feature and trait
+enrichment still run.
+
+Columns: `collection`, `term_id`, `term`, `ontology`, `n_genes_in_term`,
+`n_significant_genes`, `p_value`, `fdr`.
+
+#### `<assoc>_enrichment_traits.tsv`
+
+Over-representation of published trait associations from the
+[EWAS Atlas](https://ngdc.cncb.ac.cn/ewas/atlas), replacing looking hits up in
+the web interface by hand.
+
+Columns: `trait`, `n_universe`, `n_significant`, `n_trait_probes`,
+`n_overlap`, `expected`, `fold_enrichment`, `p_value`, `fdr`, `n_studies`,
+`pmids`, `overlapping_probes`.
+
+Two caveats. The Atlas is a catalogue of what has been published, so its
+coverage reflects study volume -- smoking, ageing and sex dominate it, and an
+overlap with those partly reflects how often they have been measured. And each
+trait's probe list is restricted here to probes in your background, so counts
+will not match the Atlas website, which reports across all arrays at once.
+
+The Atlas is keyed on bare `cg` identifiers, so an EPICv2 or MSA run that keeps
+the design suffix will not match; the rule reports this rather than returning
+an empty result silently.
 
 ### *Parallelization Parameters*
 

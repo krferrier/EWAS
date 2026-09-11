@@ -28,7 +28,10 @@ class ConfigWizard(object):
         "_groups", "_bacon_plot_kinds", "anno_cache_dir", "dmr_anno_cache_tag",
         "gene_table", "ucsc_database_base", "ucsc_gbdb_base",
         "array_platform", "zhou_release", "gencode_release", "zhou_raw_base",
+        "zhou_anno_raw_base", "zhou_anno_api_base",
         "bios_eqtm_url", "hgnc_complete_set_url",
+        "enrichment", "enrich_significance", "enrich_threshold",
+        "enrich_min_set_size", "ewas_atlas_url",
     )
 
     def __init__(self, cfg: Dict):
@@ -105,6 +108,21 @@ class ConfigWizard(object):
                 "https://github.com/zhou-lab/InfiniumAnnotationData/raw",
             )
         ).rstrip("/")
+        # The KYCG feature sets and the probe ordering file live in the OTHER
+        # Zhou repo (InfiniumAnnotation, the versioned "coherent" release),
+        # not in InfiniumAnnotationData.
+        self.zhou_anno_raw_base: str = str(
+            anno_cfg.get(
+                "zhou_anno_raw_base",
+                "https://github.com/zhou-lab/InfiniumAnnotation/raw",
+            )
+        ).rstrip("/")
+        self.zhou_anno_api_base: str = str(
+            anno_cfg.get(
+                "zhou_anno_api_base",
+                "https://api.github.com/repos/zhou-lab/InfiniumAnnotation/contents",
+            )
+        ).rstrip("/")
         self.bios_eqtm_url: str = str(
             anno_cfg.get(
                 "bios_eqtm_url",
@@ -117,6 +135,26 @@ class ConfigWizard(object):
                 "hgnc_complete_set_url",
                 "https://storage.googleapis.com/public-download-files/hgnc/"
                 "archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt",
+            )
+        )
+
+        # --- Functional enrichment of the significant CpG set ---
+        enrich_cfg = cfg.get("enrichment", {}) or {}
+        self.enrichment: bool = _to_bool(enrich_cfg.get("run", "yes"))
+        # How "significant" is defined when building the foreground set.
+        # The background is always the set of CpGs actually tested, never the
+        # whole array -- using the array would inflate every enrichment by the
+        # coverage bias of the probes that failed QC.
+        self.enrich_significance: str = str(
+            enrich_cfg.get("significance", "fdr")
+        ).lower()
+        self.enrich_threshold: float = float(enrich_cfg.get("threshold", 0.05))
+        self.enrich_min_set_size: int = int(enrich_cfg.get("min_set_size", 20))
+        self.ewas_atlas_url: str = str(
+            enrich_cfg.get(
+                "ewas_atlas_url",
+                "https://ngdc.cncb.ac.cn/ewas/downloads/batch"
+                "?file=EWAS_Atlas_associations.tsv",
             )
         )
 
@@ -364,6 +402,61 @@ class ConfigWizard(object):
     def eqtm_dir(self) -> Path:
         return self.anno_cache_dir.joinpath("eqtm")
 
+    # KYCG feature sets carried through to the annotated results as one column
+    # each. Keyed by the filename prefix in <platform>/KYCG/ (the published
+    # names are date-stamped and differ per platform, so they are matched by
+    # prefix and saved under the normalised name).
+    #
+    # Deliberately excluded: CGI (already derived from the UCSC track),
+    # InfiniumChemistry / ProbeType / Tetranuc2 / nFlankCG / MetagenePC
+    # (probe design rather than biology), and the large multi-record sets
+    # HM, TFBSrm, rmsk2 and REMCChromHMM, which are tested for enrichment
+    # instead of being flattened into a column.
+    KYCG_FEATURE_SETS = {
+        "ChromHMM": "chromHMM_state",
+        "PMD": "PMD",
+        "ABCompartment": "AB_compartment",
+        "rmsk1": "repeat_class",
+        "ImprintingDMR": "imprinting_DMR",
+        "CTCFbind": "CTCF_binding",
+        "Blacklist": "ENCODE_blacklist",
+    }
+
+    @property
+    def kycg_dir(self) -> Path:
+        """Normalised KYCG feature sets for the configured platform."""
+        return self.ewas_zhou_dir.joinpath("KYCG")
+
+    @property
+    def kycg_manifest(self) -> Path:
+        return self.ewas_zhou_dir.joinpath("kycg_manifest.tsv")
+
+    @property
+    def probe_ordering(self) -> Path:
+        """Row order the KYCG .cm files are aligned to."""
+        return self.ewas_zhou_dir.joinpath(f"{self.array_platform}.ordering.tsv.gz")
+
+    @property
+    def probe_ordering_url(self) -> str:
+        return (
+            f"{self.zhou_anno_raw_base}/{self.zhou_release}/"
+            f"{self.array_platform}/{self.array_platform}.ordering.tsv.gz"
+        )
+
+    @property
+    def kycg_api_url(self) -> str:
+        return (
+            f"{self.zhou_anno_api_base}/{self.array_platform}/KYCG"
+            f"?ref={self.zhou_release}"
+        )
+
+    @property
+    def kycg_raw_base(self) -> str:
+        return (
+            f"{self.zhou_anno_raw_base}/{self.zhou_release}/"
+            f"{self.array_platform}/KYCG"
+        )
+
     @property
     def ewas_gene_manifest_name(self) -> str:
         return (
@@ -405,6 +498,33 @@ class ConfigWizard(object):
     def ewas_annotation_manifest(self) -> Path:
         """Provenance record for the CpG-level annotation sources."""
         return self.ewas_zhou_dir.joinpath("annotation_manifest.tsv")
+
+    # ---------- Enrichment ----------
+    @property
+    def ewas_atlas_txt(self) -> Path:
+        """Cached EWAS Atlas association table (CpG to trait)."""
+        return self.anno_cache_dir.joinpath("ewas_atlas", "EWAS_Atlas_associations.tsv")
+
+    @property
+    def enrichment_out_dir(self) -> Path:
+        return self._out("enrichment")
+
+    @property
+    def enrichment_feature_results(self) -> Path:
+        return self._out("enrichment", f"{self.assoc_var}_enrichment_features.tsv")
+
+    @property
+    def enrichment_pathway_results(self) -> Path:
+        return self._out("enrichment", f"{self.assoc_var}_enrichment_pathways.tsv")
+
+    @property
+    def enrichment_trait_results(self) -> Path:
+        return self._out("enrichment", f"{self.assoc_var}_enrichment_traits.tsv")
+
+    @property
+    def enrichment_cpg_set(self) -> Path:
+        """The foreground/background split actually tested, kept for the record."""
+        return self._out("enrichment", f"{self.assoc_var}_enrichment_cpg_sets.tsv")
 
     # ---------- UCSC track cache (CpG islands, refGene, HGNC) ----------
     @property

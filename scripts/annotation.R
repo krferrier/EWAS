@@ -49,6 +49,15 @@ parser$add_argument('--shelf-bp',
                     type="integer",
                     default=2000L,
                     help="Width in bp of the shelf beyond each shore [default %(default)s]")
+parser$add_argument('--kycg-dir',
+                    default=NULL,
+                    help=paste("Directory of normalised KYCG .cm feature sets for this",
+                               "platform. Omit to skip the feature columns."))
+parser$add_argument('--probe-order',
+                    default=NULL,
+                    help=paste("Path to <platform>.ordering.tsv.gz. Required with",
+                               "--kycg-dir: the .cm files carry no probe IDs and are",
+                               "row-aligned to this file."))
 parser$add_argument('--eQTM-anno',
                     required=TRUE,
                     help="Path to eQTM annotation file")
@@ -84,6 +93,22 @@ island_file <- args$cpg_islands
 shore_bp <- args$shore_bp
 shelf_bp <- args$shelf_bp
 eqtm_file <- args$eQTM_anno
+kycg_dir <- args$kycg_dir
+order_file <- args$probe_order
+
+# KYCG set prefix -> output column name. Must stay in step with
+# ConfigWizard.KYCG_FEATURE_SETS in helper_fxns.py, which decides what
+# rules/annotate.smk downloads. A set listed here but absent from the cache is
+# skipped, so the two lists going briefly out of step is not fatal.
+KYCG_FEATURE_SETS <- list(
+    ChromHMM       = "chromHMM_state",
+    PMD            = "PMD",
+    ABCompartment  = "AB_compartment",
+    rmsk1          = "repeat_class",
+    ImprintingDMR  = "imprinting_DMR",
+    CTCFbind       = "CTCF_binding",
+    Blacklist      = "ENCODE_blacklist"
+)
 
 #' Assign each probe to a CpG island, shore, shelf, or open sea.
 #'
@@ -147,6 +172,85 @@ assign_cpg_islands <- function(island_bed, probes, shore_bp, shelf_bp) {
              CGIposition = zone)]
 }
 
+#' Read the KYCG feature sets into one probe-keyed table.
+#'
+#' The .cm files carry no probe IDs -- they are row-aligned to
+#' <platform>.ordering.tsv.gz -- and come in two packings, which `yame unpack -a`
+#' renders uniformly:
+#'   * a single column of state labels (ChromHMM, ImprintingDMR, Blacklist,
+#'     CTCFbind), used as the column value directly; and
+#'   * one 0/1 column per record (PMD, ABCompartment, rmsk1), collapsed to a
+#'     single label here. These are near-exclusive but not strictly so -- 326
+#'     EPIC probes carry more than one rmsk1 class -- so multiples are joined
+#'     with ";" rather than silently dropped.
+#'
+#' Any set a platform does not publish is simply absent and is skipped.
+#'
+#' @return data.table keyed on cpgid, or NULL when nothing could be read.
+read_kycg_features <- function(kycg_dir, order_file, feature_names) {
+    if (is.null(kycg_dir) || is.null(order_file)) return(NULL)
+    if (!dir.exists(kycg_dir) || !file.exists(order_file)) return(NULL)
+    if (Sys.which("yame") == "") {
+        warning("yame not found on PATH; skipping KYCG feature columns.")
+        return(NULL)
+    }
+
+    probe_order <- fread(order_file, select = 1L)
+    setnames(probe_order, 1L, "cpgid")
+    out <- data.table(cpgid = probe_order$cpgid)
+
+    for (prefix in names(feature_names)) {
+        cm <- file.path(kycg_dir, paste0(prefix, ".cm"))
+        if (!file.exists(cm)) next
+        column <- feature_names[[prefix]]
+
+        values <- tryCatch({
+            tbl <- fread(cmd = paste("yame unpack -a", shQuote(cm)),
+                         header = FALSE, sep = "\t", colClasses = "character")
+            if (nrow(tbl) != nrow(out)) {
+                stop(sprintf("%d rows, expected %d from the ordering file",
+                             nrow(tbl), nrow(out)))
+            }
+            if (ncol(tbl) == 1L) {
+                # already a state label per probe
+                v <- tbl[[1]]
+                v[v %in% c("NA", "", ".")] <- NA_character_
+                v
+            } else {
+                # one 0/1 column per record; recover names from `yame info`
+                info <- fread(cmd = paste("yame info", shQuote(cm)), sep = "\t")
+                labels <- as.character(info[[2]])
+                if (length(labels) != ncol(tbl)) {
+                    stop(sprintf("%d record names for %d columns",
+                                 length(labels), ncol(tbl)))
+                }
+                # Record names live in the .cm.idx sidecar. Without it yame
+                # falls back to 1..N, which would put meaningless integers in
+                # the results, so refuse the set rather than degrade quietly.
+                if (all(grepl("^[0-9]+$", labels))) {
+                    stop(sprintf(paste("record names are bare indices -- the %s.cm.idx",
+                                       "sidecar is missing from the cache"), prefix))
+                }
+                m <- as.matrix(tbl) == "1"
+                apply(m, 1L, function(hits) {
+                    if (!any(hits)) NA_character_ else paste(labels[hits], collapse = ";")
+                })
+            }
+        }, error = function(e) {
+            warning(sprintf("KYCG set '%s' skipped: %s", prefix, conditionMessage(e)))
+            NULL
+        })
+
+        if (!is.null(values)) {
+            out[[column]] <- values
+            message(sprintf("KYCG %-16s -> %-16s %d of %d probes annotated",
+                            prefix, column, sum(!is.na(values)), length(values)))
+        }
+    }
+
+    if (ncol(out) == 1L) NULL else out
+}
+
 # Read in EWAS summary statistics
 ewas <- fread(results)
 
@@ -180,6 +284,17 @@ eqtm <- fread(eqtm_file) %>%
 annotation <- left_join(gene_anno, islands, by = "cpgid") %>%
               left_join(eqtm, by = "cpgid")
 rm(gene_anno, islands)
+
+# KYCG feature columns (chromatin state, PMD, A/B compartment, repeat class,
+# imprinting DMR, CTCF binding, ENCODE blacklist). Skipped without error when
+# the cache is absent or the platform does not publish the sets.
+kycg <- read_kycg_features(kycg_dir, order_file, KYCG_FEATURE_SETS)
+if (!is.null(kycg)) {
+    annotation <- left_join(annotation, kycg, by = "cpgid")
+    rm(kycg)
+} else {
+    message("No KYCG feature sets loaded; annotated results will omit those columns.")
+}
 
 # Guard against a platform mismatch between the EWAS results and the manifest.
 # Every Zhou platform manifest has the same columns, so a wrong

@@ -160,6 +160,48 @@ properties:
 
     additionalProperties: false
 
+  # Functional enrichment of the significant CpG set
+  enrichment:
+    type: object
+    description: >
+      Feature, pathway and trait enrichment. All keys have defaults in
+      helper_fxns.ConfigWizard, so the block may be omitted.
+    properties:
+      run:
+        type: string
+        enum: ["yes", "no"]
+        description: "Whether to run the enrichment rules at all."
+
+      significance:
+        type: string
+        enum:
+          - fdr
+          - bonferroni
+          - nominal
+        description: >
+          How the significant CpG set is defined. 'fdr' applies
+          Benjamini-Hochberg, 'nominal' uses the raw p-value.
+
+      threshold:
+        type: number
+        exclusiveMinimum: 0
+        maximum: 1
+        description: "Cutoff applied to the adjusted (or raw) p-value."
+
+      min_set_size:
+        type: integer
+        minimum: 1
+        description: >
+          Ignore features, terms and traits with fewer than this many probes
+          in the background set.
+
+      ewas_atlas_url:
+        type: string
+        pattern: "^https://.+"
+        description: "URL for the EWAS Atlas association table."
+
+    additionalProperties: false
+
   # Parallelization
   chunk_size:
     type: integer

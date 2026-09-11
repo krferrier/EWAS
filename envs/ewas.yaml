@@ -16,6 +16,8 @@ dependencies:
   # scripts/run_bacon.R calls bacon(globalSeed=, parallelSeed=), which only
   # exists from that release on.
   - bioconductor-bacon >=1.32.0
+  # reads the KYCG .cm feature sets joined by scripts/annotation.R
+  - yame >=1.40
   - bioconductor-biocparallel
   - r-argparse
   - r-qqman

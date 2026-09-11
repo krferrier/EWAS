@@ -7,6 +7,9 @@ CW = ConfigWizard(config)
 validate(config, "config.schema.yml")
 
 dmr_targets = [CW.dmr_anno_final, CW.dmr_manhattan_plot]
+enrichment_targets = [CW.enrichment_feature_results,
+                      CW.enrichment_pathway_results,
+                      CW.enrichment_trait_results]
 
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if CW.stratified:
@@ -21,6 +24,9 @@ else:
 if CW.dmr:
     in_files.extend(dmr_targets)
 
+if CW.enrichment:
+    in_files.extend(enrichment_targets)
+
 #---- BEGIN WORKFLOW ----#
 rule all:
     input:
@@ -32,3 +38,5 @@ include: "rules/stratified_ewas.smk"
 include: "rules/annotate.smk"
 include: "rules/plots.smk"
 include: "rules/dmr.smk"
+# after annotate.smk: references rules.fetch_kycg_features
+include: "rules/enrichment.smk"

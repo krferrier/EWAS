@@ -120,6 +120,41 @@ annotation:
 
 
 # -----------------------------------------------------------------------------
+# Functional enrichment of the significant CpG set
+# -----------------------------------------------------------------------------
+# Three independent tests, each writing its own table under <out>/enrichment/:
+#   features  KYCG knowledgebases -- chromatin state, histone marks, TF binding,
+#             repeats, PMDs, A/B compartments (uses the same pinned v8.1 release
+#             as the annotation)
+#   pathways  GO and KEGG via missMethyl, which corrects for the number of
+#             probes per gene. Supports 450K, EPIC and EPICv2 only; on any other
+#             platform it writes an empty table naming the reason
+#   traits    EWAS Atlas published trait associations
+#
+# The background for all three is the set of CpGs actually tested, never the
+# full array manifest. A test that cannot run writes an empty table rather than
+# failing the workflow.
+enrichment:
+  # "no" skips all three.                                             [REQUIRED]
+  run: "yes"
+
+  # How the significant (foreground) set is defined.                     [CHECK]
+  #   significance: fdr | bonferroni | nominal
+  #   threshold:    cutoff applied to the adjusted (or raw, if nominal) p-value
+  significance: "fdr"
+  threshold: 0.05
+
+  # Ignore features/terms/traits with fewer than this many probes in the
+  # background. Small sets give unstable enrichment estimates.            [CHECK]
+  min_set_size: 20
+
+  # EWAS Atlas association table, about 100 MB, cached on first use.    [DEFAULT]
+  # Note the Atlas is keyed on bare cg identifiers, so trait enrichment will
+  # not match EPICv2/MSA results that keep the design suffix.
+  ewas_atlas_url: "https://ngdc.cncb.ac.cn/ewas/downloads/batch?file=EWAS_Atlas_associations.tsv"
+
+
+# -----------------------------------------------------------------------------
 # Parallelization                                                         [CHECK]
 # -----------------------------------------------------------------------------
 # chunk_size:      CpGs per EWAS chunk. Larger uses more memory per worker.
