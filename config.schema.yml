@@ -195,6 +195,21 @@ properties:
           Ignore features, terms and traits with fewer than this many probes
           in the background set.
 
+      knowledgebases:
+        description: >
+          KYCG knowledgebases tested for enrichment: a list of set names, or
+          the string "all" for everything the configured platform publishes.
+          Omit to use the built-in biological selection.
+        oneOf:
+          - type: string
+            enum: ["all"]
+          - type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              minLength: 1
+
       ewas_atlas_url:
         type: string
         pattern: "^https://.+"

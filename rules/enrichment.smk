@@ -27,8 +27,10 @@ rule fetch_ewas_atlas:
         """
 
 rule enrich_features:
-    # KYCG knowledgebases: chromatin states, histone marks, TF binding,
-    # repeats, PMDs, A/B compartments, metagene position.
+    # KYCG knowledgebases. Not everything the platform publishes: a short
+    # biological selection, set by enrichment: knowledgebases: in the config
+    # and defaulting to ConfigWizard.KYCG_ENRICHMENT_SETS, which explains the
+    # reasoning for each inclusion and exclusion.
     input:
         results = CW.annotated_results,
         kycg_dir = rules.fetch_kycg_features.output.kycg,
@@ -41,7 +43,8 @@ rule enrich_features:
         strat = CW.stratified,
         significance = CW.enrich_significance,
         threshold = CW.enrich_threshold,
-        min_set = CW.enrich_min_set_size
+        min_set = CW.enrich_min_set_size,
+        sets = ",".join(CW.kycg_enrichment_sets)
     conda:
         "../envs/enrichment.yaml"
     shell:
@@ -49,6 +52,7 @@ rule enrich_features:
         Rscript {input.script} \
         --input-file {input.results} \
         --kycg-dir {input.kycg_dir} \
+        --sets {params.sets} \
         --probe-order {input.ordering} \
         --stratified {params.strat} \
         --significance {params.significance} \

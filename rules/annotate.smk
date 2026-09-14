@@ -71,7 +71,9 @@ rule fetch_kycg_features:
         registry_url = CW.kycg_registry_url,
         platform = CW.array_platform,
         release = CW.zhou_release,
-        prefixes = " ".join(CW.KYCG_FEATURE_SETS)
+        prefixes = " ".join(CW.KYCG_FEATURE_SETS),
+        tested = " ".join(CW.kycg_enrichment_sets),
+        wanted = " ".join(CW.kycg_download_sets)
     conda:
         "../envs/ewas.yaml"
     shell:
@@ -98,25 +100,36 @@ rule fetch_kycg_features:
           rm -f "$listing"; exit 1
         fi
 
-        # Every set is fetched, not just the ones that become columns: the
-        # enrichment rules test against all of them, including the ones too
-        # large to flatten into a column (TFBSrm alone has 1188 records).
+        # Only the sets actually used are fetched: those that become
+        # annotation columns, plus those tested for enrichment. A platform can
+        # publish far more than that (EPIC 17, MSA 32) and the unused ones are
+        # the large ones -- TFBSrm alone carries 1188 records. "all" fetches
+        # everything the platform publishes.
         # The .cm.idx sidecar carries the record names -- without it yame
         # reports bare indices -- so it is fetched alongside each set.
         {{
-          echo -e "feature_set\tpublished_file\tplatform\trelease\tannotation_column\tsource\tcreated"
+          echo -e "feature_set\tpublished_file\tplatform\trelease\tannotation_column\tenrichment_tested\tsource\tcreated"
           while read -r src; do
             [ -z "$src" ] && continue
             p=$(echo "$src" | sed -E 's/(\\.[0-9]{{8}})?\\.cm$//')
+            case " {params.wanted} " in
+              *" all "*) ;;
+              *" ${{p}} "*) ;;
+              *) continue;;
+            esac
             curl -sSL --retry 3 --max-time 900 -o "{output.kycg}/${{p}}.cm" \
               "{params.raw_base}/${{src}}"
             curl -sSL --retry 3 --max-time 300 -o "{output.kycg}/${{p}}.cm.idx" \
               "{params.raw_base}/${{src}}.idx" || rm -f "{output.kycg}/${{p}}.cm.idx"
-            col="enrichment_only"
+            col="no"; tst="no"
             case " {params.prefixes} " in *" ${{p}} "*) col="yes";; esac
-            echo -e "${{p}}\t${{src}}\t{params.platform}\t{params.release}\t${{col}}\t{params.raw_base}/${{src}}\t$(date -Iseconds)"
+            case " {params.tested} " in
+              *" all "*) tst="yes";;
+              *" ${{p}} "*) tst="yes";;
+            esac
+            echo -e "${{p}}\t${{src}}\t{params.platform}\t{params.release}\t${{col}}\t${{tst}}\t{params.raw_base}/${{src}}\t$(date -Iseconds)"
           done < "$listing"
-          echo -e "probe_ordering\t{params.platform}.ordering.tsv.gz\t{params.platform}\t{params.release}\tNA\t{params.ordering_url}\t$(date -Iseconds)"
+          echo -e "probe_ordering\t{params.platform}.ordering.tsv.gz\t{params.platform}\t{params.release}\tNA\tNA\t{params.ordering_url}\t$(date -Iseconds)"
         }} > {output.manifest}
 
         rm -f "$listing"

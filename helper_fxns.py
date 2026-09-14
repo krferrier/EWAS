@@ -31,7 +31,7 @@ class ConfigWizard(object):
         "zhou_anno_raw_base", "zhou_anno_api_base",
         "bios_eqtm_url", "hgnc_complete_set_url",
         "enrichment", "enrich_significance", "enrich_threshold",
-        "enrich_min_set_size", "ewas_atlas_url",
+        "enrich_min_set_size", "ewas_atlas_url", "_enrich_kbs",
         "enrichment_plots", "enrich_plot_top_n",
         "dmr_make_zoom", "dmr_make_combined", "dmr_plot_min_probes",
         "dmr_plot_max_y", "dmr_zoom_padding", "dmr_cluster_gap",
@@ -154,6 +154,8 @@ class ConfigWizard(object):
         ).lower()
         self.enrich_threshold: float = float(enrich_cfg.get("threshold", 0.05))
         self.enrich_min_set_size: int = int(enrich_cfg.get("min_set_size", 20))
+        # Which KYCG knowledgebases to test. A list of set names, or "all".
+        self._enrich_kbs = enrich_cfg.get("knowledgebases")
         self.ewas_atlas_url: str = str(
             enrich_cfg.get(
                 "ewas_atlas_url",
@@ -450,6 +452,60 @@ class ConfigWizard(object):
         "CTCFbind": "CTCF_binding",
         "Blacklist": "ENCODE_blacklist",
     }
+
+    # Knowledgebases tested for enrichment. Deliberately a short list, and
+    # much shorter than what a platform publishes (EPIC 17 sets, MSA 32).
+    #
+    # Chosen to be biological, non-redundant, and not already derivable from
+    # the annotated results:
+    #   ChromHMM       chromatin state -- the most directly interpretable
+    #   PMD            partially methylated domains
+    #   ABCompartment  Hi-C A/B compartments
+    #   rmsk1          repeat classes (rmsk2 is the same annotation, finer)
+    #   ImprintingDMR  a positive control: a hit means allele-specific biology
+    #   CTCFbind       methylation-sensitive CTCF binding; one test
+    #
+    # Left out on purpose. Design and QC sets (ProbeType, InfiniumChemistry,
+    # Blacklist, nFlankCG) are not biology -- Blacklist and CTCF binding are
+    # still reported per CpG as annotation columns, so a hit list can be
+    # inspected for artefacts without testing for them. CGI duplicates the
+    # CGIposition column this workflow derives from UCSC islands.
+    # REMCChromHMM restates ChromHMM from a different reference, and HM is the
+    # histone data ChromHMM states are called from, so both are largely nested
+    # in it. TFBSrm is 1188 motifs -- on EPIC that is 84% of all features
+    # tested, which costs every other set FDR power. Tetranuc2 is sequence
+    # composition and overlaps nFlankCG.
+    #
+    # Widen with `enrichment: knowledgebases:` in the config -- a list of set
+    # names, or "all" for everything the platform publishes.
+    KYCG_ENRICHMENT_SETS = (
+        "ChromHMM", "PMD", "ABCompartment", "rmsk1", "ImprintingDMR",
+        "CTCFbind",
+    )
+
+    @property
+    def kycg_enrichment_sets(self) -> tuple:
+        """Set names tested by enrich_features, or ("all",)."""
+        cfg = getattr(self, "_enrich_kbs", None)
+        if cfg is None:
+            return self.KYCG_ENRICHMENT_SETS
+        if isinstance(cfg, str):
+            if cfg.strip().lower() == "all":
+                return ("all",)
+            return tuple(x.strip() for x in cfg.split(",") if x.strip())
+        return tuple(str(x).strip() for x in cfg if str(x).strip())
+
+    @property
+    def kycg_download_sets(self) -> tuple:
+        """Sets the fetch rule needs: annotation columns plus tested sets.
+
+        Downloading only what is used matters on MSA, which publishes 32 sets;
+        TFBSrm and HM alone are hundreds of megabytes.
+        """
+        tested = self.kycg_enrichment_sets
+        if tested == ("all",):
+            return ("all",)
+        return tuple(dict.fromkeys(tuple(self.KYCG_FEATURE_SETS) + tested))
 
     @property
     def kycg_dir(self) -> Path:

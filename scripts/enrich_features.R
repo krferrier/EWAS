@@ -28,6 +28,12 @@ parser$add_argument('--stratified', required = TRUE)
 parser$add_argument('--significance', default = "fdr")
 parser$add_argument('--threshold', type = "double", default = 0.05)
 parser$add_argument('--min-set-size', type = "integer", default = 20L)
+parser$add_argument('--sets', default = "all",
+                    help = paste("Comma-separated KYCG set names to test, or",
+                                 "'all' for every .cm in --kycg-dir. Named",
+                                 "explicitly rather than globbed so the tested",
+                                 "set is recorded in the run, and does not",
+                                 "change when the cache gains a file."))
 parser$add_argument('--output', required = TRUE)
 args <- parser$parse_args()
 
@@ -54,6 +60,28 @@ if (length(cm_files) == 0L) {
     write_empty_result(args$output, OUT_COLS,
                        sprintf("no .cm knowledgebases in %s", args$kycg_dir))
     quit(save = "no", status = 0)
+}
+
+# Restrict to the requested sets. A requested set that is absent is reported
+# and skipped rather than fatal: a platform need not publish every set.
+if (!identical(tolower(trimws(args$sets)), "all")) {
+    want <- trimws(strsplit(args$sets, ",", fixed = TRUE)[[1]])
+    want <- want[nzchar(want)]
+    have <- sub("\\.cm$", "", basename(cm_files))
+    missing <- setdiff(want, have)
+    if (length(missing)) {
+        message(sprintf("not published for this platform, skipping: %s",
+                        paste(missing, collapse = ", ")))
+    }
+    cm_files <- cm_files[have %in% want]
+    if (length(cm_files) == 0L) {
+        write_empty_result(args$output, OUT_COLS,
+                           sprintf("none of the requested knowledgebases (%s) are in %s",
+                                   args$sets, args$kycg_dir))
+        quit(save = "no", status = 0)
+    }
+    message(sprintf("testing %d knowledgebase(s): %s", length(cm_files),
+                    paste(sub("\\.cm$", "", basename(cm_files)), collapse = ", ")))
 }
 
 # --- build the format-6 query over the platform's row order ---

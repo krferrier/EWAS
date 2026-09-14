@@ -178,6 +178,27 @@ enrichment:
   # background. Small sets give unstable enrichment estimates.            [CHECK]
   min_set_size: 20
 
+  # Which KYCG knowledgebases to test.                                   [CHECK]
+  # A short biological selection by default -- not everything the platform
+  # publishes (EPIC 17 sets, MSA 32), most of which is either technical
+  # (probe type, chemistry, blacklist, CpG density), redundant with another
+  # set or with a column the results already carry (CGI duplicates
+  # CGIposition; REMCChromHMM and HM are largely nested in ChromHMM), or so
+  # large it costs everything else FDR power (TFBSrm is 1188 motifs, 84% of
+  # all features tested on EPIC).
+  #
+  # Add any published set by name, e.g. [ChromHMM, PMD, HM, MetagenePC], or
+  # use `all` for everything the platform publishes. Set names and what each
+  # one means are in the cached registry -- see the README section on the
+  # KYCG knowledgebases.
+  knowledgebases:
+    - ChromHMM        # 18 chromatin states
+    - PMD             # partially methylated domains
+    - ABCompartment   # Hi-C A/B compartments
+    - rmsk1           # repeat classes
+    - ImprintingDMR   # positive control: allele-specific methylation
+    - CTCFbind        # methylation-sensitive CTCF binding
+
   # Summary dot plots in <out>/enrichment/.                              [CHECK]
   # Four plots: the pooled top hits for features, GO/KEGG and traits, plus a
   # fourth showing the strongest feature from each KYCG knowledgebase. That

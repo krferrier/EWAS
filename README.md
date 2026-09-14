@@ -442,9 +442,88 @@ set up there first:
 awk -F'\t' '$1=="ABCompartment"' resources/annotation/zhou/EPIC/v8.1/KYCG/knowledgebases.tsv
 ```
 
-The sets this workflow tests, with the feature vocabulary each one actually
-emits (read from the `.cm` files themselves, so these are the values you will
-see in the enrichment tables):
+##### Which sets are tested, and why only a few
+
+Zhou publishes far more than is worth testing: 17 sets for EPIC, 32 for MSA.
+`enrichment.knowledgebases` picks the ones tested, defaulting to six:
+
+| Tested by default | Why |
+|---|---|
+| `ChromHMM` | chromatin state, the most directly interpretable annotation here |
+| `PMD` | partially methylated domains |
+| `ABCompartment` | Hi-C A/B compartments |
+| `rmsk1` | repeat classes |
+| `ImprintingDMR` | positive control -- a hit means real allele-specific biology |
+| `CTCFbind` | methylation-sensitive CTCF binding; one test |
+
+The rest are left out for one of four reasons, and any of them can be added
+back by name:
+
+1. **Technical, not biological.** `ProbeType`, `InfiniumChemistry`,
+   `Blacklist` and `nFlankCG` describe array design, artefact-prone regions
+   and local CpG density. Zhou's registry frames the first three as post-hoc
+   *controls* rather than pre-processing aids -- probe type is the first thing
+   to rule out when an enrichment looks surprising, and CpG density is the
+   covariate to check before believing a subtler result. They are omitted here
+   because they are not biology, not because the check is worthless:
+   `ENCODE_blacklist` and `CTCF_binding` are still reported per CpG as
+   annotation columns, so a hit list can be inspected for artefacts directly.
+2. **Already in the results.** `CGI` duplicates the `CGIposition` column this
+   workflow derives from UCSC islands, and `MetagenePC` largely restates
+   `distToTSS`.
+3. **Redundant with a tested set.** `REMCChromHMM` is the same concept as
+   `ChromHMM` from a different reference; `HM` is the histone data ChromHMM
+   states are *called from*, so the two are nested; `rmsk2` is `rmsk1` at
+   family rather than class resolution; `Tetranuc2` is sequence composition
+   and overlaps `nFlankCG`.
+4. **Too large to be worth its FDR cost.** `TFBSrm` is 1,188 motifs -- 84% of
+   every feature tested on EPIC. Testing it makes the BH denominator roughly
+   eight times larger, which every other set pays for.
+
+##### Is enrichment testing even the right question for these?
+
+Partly. The hypergeometric test is well posed for *any* categorical
+annotation of the probes, including one with only two levels: `PMD` in or out
+is a 2x2 table, the same form as a single GO term's membership test. Nor does
+"it is really a genomic-location annotation" disqualify a set -- every KYCG
+set is one, and GO and KEGG are equally just categorical memberships, of genes
+instead of positions. The annotation column and the test answer different
+questions: the column says this CpG sits in a LINE, the test says your hits sit
+in LINEs more often than the CpGs you tested.
+
+What does matter is **feature size**, because it caps the effect you can
+observe. A feature covering 40% of the tested probes cannot show more than
+2.5x enrichment even if every hit fell inside it:
+
+| Set | Largest feature | Share of probes | Largest fold enrichment possible |
+|---|---|---|---|
+| `MetagenePC` | `-10;-76650 -/+2` | 51% | 1.9x |
+| `ChromHMM` | `Quies` | 46% | 2.2x |
+| `PMD` | `commonHMD` | 40% | 2.5x |
+| `ABCompartment` | `A1` | 35% | 2.8x |
+| `rmsk1` | `LINE` | 6.7% | 15x |
+| `rmsk2` | `L1` | 3.5% | 29x |
+| `ImprintingDMR` | `ImprintingDMR` | 0.1% | 780x |
+
+(Shares from an EPIC run; they shift a little with the probes actually tested.)
+So your instinct about `PMD` is half right -- not because two levels is too few,
+but because the domains are so large that the test has little dynamic range. It
+is still worth one test. Repeats, by contrast, are among the better-behaved
+sets to test: `rmsk1` has real headroom, so the question is whether repeat
+methylation is part of your hypothesis, not whether the test is valid.
+
+One caveat that applies to all of these and not to the pathway results:
+**nothing here is adjusted for anything.** `gometh` corrects for the number of
+probes per gene; the KYCG hypergeometric assumes probes are exchangeable. These
+annotations are strongly inter-correlated and all correlate with CpG density,
+so several sets can come up significant off the same underlying structure.
+Read them as marginal, unadjusted enrichments.
+
+##### The sets themselves
+
+Every set below can be tested by naming it in `enrichment.knowledgebases`; the
+six above are simply the default. The feature vocabulary is read from the `.cm`
+files themselves, so these are the values that appear in the enrichment tables:
 
 | Knowledgebase | What it is | A feature value looks like | Upstream source |
 |---|---|---|---|
