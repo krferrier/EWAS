@@ -200,6 +200,72 @@ properties:
         pattern: "^https://.+"
         description: "URL for the EWAS Atlas association table."
 
+      make_plots:
+        type: string
+        enum: ["yes", "no"]
+        description: >
+          Whether to write one summary dot plot per enrichment analysis. The
+          plot is produced even when nothing is significant.
+
+      plot_top_n:
+        type: integer
+        minimum: 1
+        description: "Number of results shown in each enrichment plot."
+
+    additionalProperties: false
+
+  # DMR plotting
+  dmr_plots:
+    type: object
+    description: >
+      Options for scripts/dmr_plot.R. All keys have defaults in
+      helper_fxns.ConfigWizard, so the block may be omitted. Only applies when
+      dmr_analysis is "yes".
+    properties:
+      make_zoom:
+        type: string
+        enum: ["yes", "no"]
+        description: >
+          Write a locus-zoom plot and a refGene gene table per cluster of
+          significant regions. These files are not tracked by Snakemake
+          because their number depends on how many regions comb-p finds.
+
+      make_combined:
+        type: string
+        enum: ["yes", "no"]
+        description: >
+          Write a combined multi-panel figure from the manhattan and zoom
+          plots. Only meaningful with make_zoom set to "yes".
+
+      combined_formats:
+        type: string
+        minLength: 1
+        description: "Output format(s) for the combined figure, e.g. pdf."
+
+      min_probes:
+        type: integer
+        minimum: 1
+        description: >
+          Minimum CpGs in a region before it is highlighted and eligible for
+          a zoom plot.
+
+      max_y:
+        type: number
+        description: >
+          Upper limit of the manhattan y axis. -1 lets the data set it.
+
+      zoom_padding:
+        type: integer
+        minimum: 0
+        description: "bp of context on each side of a zoomed cluster."
+
+      cluster_gap:
+        type: integer
+        minimum: 0
+        description: >
+          Largest gap in bp between regions still grouped into one zoom
+          window.
+
     additionalProperties: false
 
   # Parallelization

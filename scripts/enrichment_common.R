@@ -74,7 +74,21 @@ write_empty_result <- function(path, columns, reason) {
 #' Tests over-representation only (upper tail): a set depleted in the
 #' significant CpGs is not evidence of biological depletion here, because the
 #' foreground is defined by a p-value cutoff rather than by sampling.
+#' Returns a list of `p_value` and `neg_log10_p`.
+#'
+#' The test is evaluated with log.p = TRUE and exponentiated afterwards, rather
+#' than read off the linear scale directly. This is not a micro-optimisation: a
+#' strong enrichment over a large feature genuinely produces p-values below the
+#' smallest positive double (~1e-308), where the linear result collapses to
+#' exactly 0 and the ranking among the top hits is destroyed. For example, 1400
+#' of 2000 significant CpGs falling in a feature covering 6507 of 50000 tested
+#' CpGs gives p = 1e-802: representable as a log, not as a double.
+#'
+#' `p_value` is therefore allowed to underflow to 0 in the output table -- that
+#' is what a p-value column can express -- while `neg_log10_p` carries the exact
+#' magnitude and is what the plots should use.
 hyper_test <- function(n_overlap, n_query, n_mask, n_univ) {
-    stats::phyper(n_overlap - 1L, n_mask, n_univ - n_mask, n_query,
-                  lower.tail = FALSE)
+    log_p <- stats::phyper(n_overlap - 1L, n_mask, n_univ - n_mask, n_query,
+                           lower.tail = FALSE, log.p = TRUE)
+    list(p_value = exp(log_p), neg_log10_p = -log_p / log(10))
 }

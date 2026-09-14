@@ -33,6 +33,7 @@ args <- parser$parse_args()
 
 OUT_COLS <- c("knowledgebase", "feature", "n_universe", "n_significant",
               "n_in_feature", "n_overlap", "expected", "fold_enrichment",
+              "neg_log10_p",
               "log2_odds_ratio", "p_value", "fdr")
 
 sets <- read_cpg_sets(args$input_file, args$stratified,
@@ -115,7 +116,11 @@ if (nrow(all) == 0L) {
 all[, expected := n_significant * (n_in_feature / n_universe)]
 all[, fold_enrichment := fifelse(expected > 0, n_overlap / expected, NA_real_)]
 all[, log2_odds_ratio := as.numeric(Log2OddsRatio)]
-all[, p_value := hyper_test(n_overlap, n_significant, n_in_feature, n_universe)]
+.ht <- hyper_test(n_overlap = all$n_overlap, n_query = all$n_significant,
+                  n_mask = all$n_in_feature, n_univ = all$n_universe)
+all[, p_value := .ht$p_value]
+# Exact magnitude even where p_value has underflowed to 0; see hyper_test().
+all[, neg_log10_p := .ht$neg_log10_p]
 all[, fdr := p.adjust(p_value, method = "BH")]
 
 setorder(all, p_value, -fold_enrichment)

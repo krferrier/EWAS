@@ -34,7 +34,8 @@ parser$add_argument('--output', required = TRUE)
 args <- parser$parse_args()
 
 OUT_COLS <- c("trait", "n_universe", "n_significant", "n_trait_probes",
-              "n_overlap", "expected", "fold_enrichment", "p_value", "fdr",
+              "n_overlap", "expected", "fold_enrichment", "neg_log10_p",
+              "p_value", "fdr",
               "n_studies", "pmids", "overlapping_probes")
 
 sets <- read_cpg_sets(args$input_file, args$stratified,
@@ -91,7 +92,11 @@ per_trait[, n_universe := n_univ]
 per_trait[, n_significant := n_sig]
 per_trait[, expected := n_sig * (n_trait_probes / n_univ)]
 per_trait[, fold_enrichment := fifelse(expected > 0, n_overlap / expected, NA_real_)]
-per_trait[, p_value := hyper_test(n_overlap, n_sig, n_trait_probes, n_univ)]
+.ht <- hyper_test(n_overlap = per_trait$n_overlap, n_query = per_trait$n_sig,
+                  n_mask = per_trait$n_trait_probes, n_univ = per_trait$n_univ)
+per_trait[, p_value := .ht$p_value]
+# Exact magnitude even where p_value has underflowed to 0; see hyper_test().
+per_trait[, neg_log10_p := .ht$neg_log10_p]
 per_trait[, fdr := p.adjust(p_value, method = "BH")]
 per_trait[, overlapping_probes := vapply(overlap_probes, function(p) {
     if (length(p) == 0L) return(NA_character_)

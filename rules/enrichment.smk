@@ -86,6 +86,43 @@ rule enrich_pathways:
         --output {output}
         """
 
+def _enrichment_table(wildcards):
+    return CW.enrichment_table(wildcards.kind)
+
+rule plot_enrichment:
+    # One dot plot per enrichment analysis: top N by p-value, point size and
+    # transparency showing how many CpGs or genes drive each result, solid
+    # versus hollow separating what passes FDR from what does not.
+    #
+    # The plot is always written, so it stays a tracked output. When the table
+    # is empty or nothing is significant, the plot says that instead -- the
+    # same convention the enrichment tables use. That avoids the alternative
+    # of an untracked output, which would need a sentinel file for Snakemake
+    # to know the rule had run.
+    input:
+        table = _enrichment_table,
+        script = "scripts/plot_enrichment.R"
+    output:
+        CW.enrichment_plot("{kind}")
+    params:
+        assoc = CW.assoc_var,
+        top_n = CW.enrich_plot_top_n,
+        threshold = CW.enrich_threshold
+    wildcard_constraints:
+        kind = "|".join(CW.ENRICHMENT_KINDS)
+    conda:
+        "../envs/enrichment.yaml"
+    shell:
+        """
+        Rscript {input.script} \
+        --input-file {input.table} \
+        --kind {wildcards.kind} \
+        --assoc {params.assoc} \
+        --top-n {params.top_n} \
+        --fdr-threshold {params.threshold} \
+        --output {output}
+        """
+
 rule enrich_traits:
     # EWAS Atlas trait over-representation.
     input:

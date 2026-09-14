@@ -166,35 +166,59 @@ rule annotate_dmrs:
         """
 
 rule plot_dmrs:
+    # The manhattan plot is the tracked output. With dmr_plots.make_zoom: "yes"
+    # the script additionally writes one locus-zoom plot and one refGene gene
+    # table per cluster of significant regions, and with make_combined: "yes" a
+    # combined multi-panel figure.
+    #
+    # Those extra files are deliberately NOT declared as outputs: comb-p may
+    # find no regions, and the number of clusters cannot be known until it has
+    # run. They are side outputs of a rule whose primary output IS tracked, so
+    # Snakemake still reruns this rule when the region calls change.
+    #
+    # Because they are untracked, Snakemake will not clean them up, and stale
+    # zoom plots from an earlier run would otherwise sit alongside current ones
+    # with no way to tell them apart. The shell clears them first.
+    #
+    # Settings not listed here keep scripts/dmr_plot.R's own defaults
+    # (point jitter, zoom midlines, gene label size, combined figure
+    # dimensions, panel label size) -- they are cosmetic and were previously
+    # duplicated in this rule at exactly the script's default values.
     input:
         slk = rules.run_dmr.output.slk,
         dmr_regions_p = rules.run_dmr.output.regions_p
     params:
         o_prefix = CW.dmr_out_dir,
-        assoc = CW.assoc_var
+        assoc = CW.assoc_var,
+        genome = CW.genome_build,
+        min_probes = CW.dmr_plot_min_probes,
+        max_y = CW.dmr_plot_max_y,
+        make_zoom = CW.dmr_make_zoom,
+        zoom_padding = CW.dmr_zoom_padding,
+        cluster_gap = CW.dmr_cluster_gap,
+        make_combined = CW.dmr_make_combined,
+        combined_formats = CW.dmr_combined_formats
     output:
         CW.dmr_manhattan_plot
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        rm -f "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.jpg \
+              "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.refGene_genes.tsv \
+              "{params.o_prefix}/{params.assoc}_dmr_combined."*
+
         Rscript scripts/dmr_plot.R \
             --slk-file {input.slk} \
             --regions-file {input.dmr_regions_p} \
             --out-dir {params.o_prefix} \
             --assoc {params.assoc} \
-            --min-probes 2 \
-            --max-y -1 \
-            --make-zoom no \
-            --zoom-padding 2000 \
-            --cluster-gap 3000 \
-            --point-jitter-bp 25 \
-            --zoom-midlines yes \
-            --genome-build hg38 \
-            --gene-label-size 3.0 \
-            --make-combined no \
-            --combined-formats pdf \
-            --combined-width-cm 18.3 \
-            --combined-region-height-cm 10 \
-            --panel-label-size 16
+            --genome-build {params.genome} \
+            --min-probes {params.min_probes} \
+            --max-y {params.max_y} \
+            --make-zoom {params.make_zoom} \
+            --zoom-padding {params.zoom_padding} \
+            --cluster-gap {params.cluster_gap} \
+            --make-combined {params.make_combined} \
+            --combined-formats {params.combined_formats}
         """

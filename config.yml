@@ -59,6 +59,36 @@ min_pvalue: 1.0e-4
 window_size: 200
 region_filter: 0.05
 
+# DMR plotting. Only applies when dmr_analysis is "yes".
+# The manhattan plot is always produced. The two toggles below add files whose
+# NUMBER cannot be known in advance -- one locus-zoom plot plus one refGene
+# gene table per cluster of significant regions -- so they are not tracked by
+# Snakemake and are left off by default. Turn make_zoom on when you want to
+# look at individual regions; on a result with many significant regions it can
+# produce a lot of files. Stale zoom files from a previous run are cleared each
+# time plot_dmrs runs, so what you see always belongs to the current results.
+#
+# scripts/dmr_plot.R has further cosmetic options (point jitter, zoom
+# midlines, gene label size, combined figure dimensions, panel label size).
+# They are not surfaced here; edit the script's defaults if you need them.
+dmr_plots:
+  # Locus-zoom plot + gene track per significant region cluster.         [CHECK]
+  make_zoom: "no"
+  # Single multi-panel figure combining the manhattan and the zoom plots.
+  # Only meaningful with make_zoom: "yes".                               [CHECK]
+  make_combined: "no"
+  combined_formats: "pdf"
+
+  # Minimum number of CpGs a region needs before it is highlighted and
+  # eligible for a zoom plot. 1 includes single-CpG regions.             [CHECK]
+  min_probes: 2
+  # Upper limit of the manhattan y axis; -1 lets the data set it.      [DEFAULT]
+  max_y: -1
+  # bp of context on each side of a zoomed cluster, and the largest gap in bp
+  # between regions still grouped into one zoom window.                [DEFAULT]
+  zoom_padding: 2000
+  cluster_gap: 3000
+
 
 # -----------------------------------------------------------------------------
 # Genome build                                                        [REQUIRED]
@@ -147,6 +177,21 @@ enrichment:
   # Ignore features/terms/traits with fewer than this many probes in the
   # background. Small sets give unstable enrichment estimates.            [CHECK]
   min_set_size: 20
+
+  # Summary dot plots in <out>/enrichment/.                              [CHECK]
+  # Four plots: the pooled top hits for features, GO/KEGG and traits, plus a
+  # fourth showing the strongest feature from each KYCG knowledgebase. That
+  # last one exists because TFBSrm alone is ~84% of the features tested, so a
+  # pooled ranking is dominated by TF motifs and most knowledgebases never
+  # appear; it plots fold enrichment, which is comparable across them.
+  # Shows the top `plot_top_n` results by p-value, with point size and
+  # transparency carrying how many CpGs or genes drive each result, and solid
+  # versus hollow points separating what passes the FDR threshold above from
+  # what does not. Non-significant results are shown rather than dropped, so a
+  # plot with no solid points tells you there were no findings. The plot is
+  # written even when the table is empty -- it then says so.
+  make_plots: "yes"
+  plot_top_n: 10
 
   # EWAS Atlas association table, about 100 MB, cached on first use.    [DEFAULT]
   # Note the Atlas is keyed on bare cg identifiers, so trait enrichment will

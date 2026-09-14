@@ -120,7 +120,12 @@ paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
 |-- enrichment/                                  only when enrichment.run: "yes"
 |   |-- <assoc>_enrichment_features.tsv          KYCG feature over-representation
 |   |-- <assoc>_enrichment_pathways.tsv          GO and KEGG terms
-|   `-- <assoc>_enrichment_traits.tsv            EWAS Atlas trait associations
+|   |-- <assoc>_enrichment_traits.tsv            EWAS Atlas trait associations
+|   |-- <assoc>_enrichment_features.jpg          top hits per analysis;
+|   |-- <assoc>_enrichment_features_by_knowledgebase.jpg   strongest feature per
+|   |                                              knowledgebase;
+|   |-- <assoc>_enrichment_pathways.jpg            all four only when
+|   `-- <assoc>_enrichment_traits.jpg              enrichment.make_plots: "yes"
 |
 |-- <assoc>_ewas_annotated_results.bed           only when dmr_analysis: "yes": comb-p input
 `-- dmr/                                         only when dmr_analysis: "yes"
@@ -132,14 +137,26 @@ paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
     |-- <assoc>_ewas.regions-p.bed.gz            called regions with region-level p-values
     |-- <assoc>_ewas.manhattan.png               comb-p's own manhattan plot
     |-- <assoc>_dmr_annotated_results.tsv        regions annotated with genes and CpG islands
-    `-- <assoc>_dmr_manhattan.jpg                manhattan plot of the annotated regions
+    |-- <assoc>_dmr_manhattan.jpg                manhattan plot of the annotated regions
+    |-- <assoc>_dmr_zoom_cluster_<i>.jpg         only when dmr_plots.make_zoom: "yes";
+    |-- <assoc>_dmr_zoom_cluster_<i>.refGene_genes.tsv   one pair per region cluster,
+    |                                              count unknown in advance, untracked
+    `-- <assoc>_dmr_combined.pdf                 only when dmr_plots.make_combined: "yes"
 ```
 
 A note on the DMR files: `run_dmr` declares six of comb-p's outputs as rule
 outputs. comb-p writes some additional intermediates (for example
-`<assoc>_ewas.regions-t.bed.gz`) that Snakemake does not track, so they are not
-cleaned up or re-created on a rerun. Not all region files appear if no region
-reaches significance.
+`<assoc>_ewas.regions-t.bed.gz`) that Snakemake does not track because if no region 
+reaches significance they are not created and the workflow breaks thinking there are 
+missing files.
+
+The zoom plots are untracked for the same reason, with an additional one: how
+many appear depends on how many clusters of significant regions comb-p finds,
+which is not knowable before it runs. They are side outputs of `plot_dmrs`,
+whose manhattan plot *is* tracked, so the rule still reruns when the region
+calls change. Because Snakemake will not clean them up, `plot_dmrs` deletes any
+zoom files from a previous run before writing new ones -- what is on disk always
+belongs to the current results.
 
 Annotation resources are cached outside `out_directory`, under
 `annotation.cache_dir` (default `resources/annotation/`) so they are downloaded
@@ -193,7 +210,7 @@ once and shared across runs. METAL is built once into `software/metal/`. See
 
 **DMR** (`make_bed`, `run_dmr`, `annotate_dmrs`, `plot_dmrs`)
 
-* A BED of the annotated results, which is comb-p's input.
+* A BED format of the annotated results, which is comb-p's input.
 * comb-p's intermediates: the arguments used, the autocorrelation function by
   distance lag, per-CpG p-values corrected for local correlation, and the same
   with FDR. The `.acf.txt` is worth a look -- it shows the distance over which
@@ -398,6 +415,54 @@ The Atlas is keyed on bare `cg` identifiers, so an EPICv2 or MSA run that keeps
 the design suffix will not match; the rule reports this rather than returning
 an empty result silently.
 
+#### Enrichment plots
+
+With `enrichment.make_plots: "yes"` each analysis also gets a dot plot,
+`<assoc>_enrichment_<features|pathways|traits>.jpg`, showing the top
+`enrichment.plot_top_n` results by p-value, plus a fourth plot described in
+point 4 below. Point size and transparency carry
+how many CpGs or genes drive each result; solid points pass the FDR threshold
+and hollow points do not; colour separates knowledgebases or GO from KEGG when
+more than one appears in the top results.
+
+Two deliberate choices in how these read:
+
+1. Non-significant results are shown rather than dropped, so a plot with no
+   solid points tells you directly that nothing was significant -- the subtitle
+   says so too. Seeing that the best hit was p = 0.2 is more useful than an
+   empty figure.
+2. The x axis is normally -log10(p), but the strongest KYCG enrichments
+   routinely underflow to p = 0 on a full array, which would stack every point
+   on one line. When that happens the axis switches to fold enrichment and both
+   the axis label and the subtitle say so, so the two cases cannot be confused.
+3. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
+   collection*, each panel on its own x axis. This is not only cosmetic:
+   `enrich_pathways.R` calls `gometh` once per collection and keeps each
+   collection's own FDR, so GO and KEGG are separate multiple-testing families.
+   A pooled ranking would also be swamped by GO, which carries some 22,000 terms
+   against KEGG's ~350 -- in testing, a pooled top 10 contained no KEGG pathways
+   at all. Because the two families are corrected separately they are not
+   directly comparable, so they do not share a scale; significance is read from
+   whether a point is solid, which is per-collection.
+4. The KYCG features get a second plot,
+   `<assoc>_enrichment_features_by_knowledgebase.jpg`, showing the strongest
+   feature from each knowledgebase. `TFBSrm` alone is around 84% of the
+   features tested, so the pooled top 10 is mostly TF motifs and knowledgebases
+   such as PMD, A/B compartment, repeats and CTCF binding rarely surface even
+   when they have a significant hit. Unlike GO/KEGG this is *not* a
+   multiple-testing issue -- `enrich_features.R` corrects all features as one
+   pooled BH family, and correcting within knowledgebase instead changed the
+   significant count by one in testing -- so the pooled ranking stays valid and
+   both views are kept. This plot's x axis is fold enrichment, not -log10(p),
+   because a large feature earns a smaller p-value at the same fold enrichment
+   as a small one; ranking knowledgebases by p would partly re-sort them by
+   feature size.
+
+The plot is written even when the table is empty or the test was skipped; it
+then carries a panel naming the reason. That is why these are ordinary tracked
+outputs rather than untracked files -- there is no case in which the rule
+produces nothing, so Snakemake never looks for a file that was not created.
+
 ### *Run Provenance*
 
 <a name="run-provenance"></a>
@@ -456,6 +521,34 @@ Note that `genome_build` is not a DMR-only setting: it selects both the UCSC tra
 |min_pvalue | 1e-04         | P-value threshold for beginning a region                             |
 | window_size | 200           | Maximum distance to search for another CpG < min_pvalue              |
 | region_filter | 0.05          | max adjusted region-level p-value to be reported                     |
+
+#### DMR plots
+
+`plot_dmrs` always writes the region manhattan plot. The `dmr_plots:` block
+controls two optional additions.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| make_zoom | "no" | Write a locus-zoom plot plus a refGene gene table per cluster of significant regions |
+| make_combined | "no" | Combine the manhattan and zoom plots into one multi-panel figure; needs `make_zoom: "yes"` |
+| combined_formats | "pdf" | Format for the combined figure |
+| min_probes | 2 | Minimum CpGs in a region before it is highlighted and eligible for a zoom plot |
+| max_y | -1 | Manhattan y-axis maximum; -1 lets the data set it |
+| zoom_padding | 2000 | bp of context on each side of a zoomed cluster |
+| cluster_gap | 3000 | Largest gap in bp between regions still grouped into one zoom window |
+
+`make_zoom` is off by default because the number of files it produces is not
+bounded by anything you set: it is two files per cluster of significant regions,
+so a result with many regions can produce a great many files. Turn it on when
+you want to look at individual regions -- each plot shows the CpGs in the window
+with a refGene gene track underneath, and the accompanying `.tsv` lists the
+genes in that window.
+
+These files are not tracked by Snakemake, for the reason given under
+[Output Files](#output-files). `scripts/dmr_plot.R` has further cosmetic options
+(point jitter, zoom midlines, gene label size, combined-figure dimensions, panel
+label size) that are not surfaced in the config; change the script's defaults if
+you need them.
 
 ## Dry Run & DAG
 

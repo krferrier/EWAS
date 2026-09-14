@@ -32,6 +32,10 @@ class ConfigWizard(object):
         "bios_eqtm_url", "hgnc_complete_set_url",
         "enrichment", "enrich_significance", "enrich_threshold",
         "enrich_min_set_size", "ewas_atlas_url",
+        "enrichment_plots", "enrich_plot_top_n",
+        "dmr_make_zoom", "dmr_make_combined", "dmr_plot_min_probes",
+        "dmr_plot_max_y", "dmr_zoom_padding", "dmr_cluster_gap",
+        "dmr_combined_formats",
     )
 
     def __init__(self, cfg: Dict):
@@ -157,6 +161,31 @@ class ConfigWizard(object):
                 "?file=EWAS_Atlas_associations.tsv",
             )
         )
+        # One summary plot per enrichment analysis. Always written when
+        # enabled, including when nothing reached significance -- the plot then
+        # states that, matching how the enrichment tables write an empty table
+        # naming the reason. That keeps the outputs trackable by Snakemake.
+        self.enrichment_plots: bool = _to_bool(enrich_cfg.get("make_plots", "yes"))
+        self.enrich_plot_top_n: int = int(enrich_cfg.get("plot_top_n", 10))
+
+        # --- DMR plotting ---
+        # scripts/dmr_plot.R exposes more knobs than are surfaced here; the
+        # rest keep the script's own defaults. Only settings that change which
+        # FILES appear, or that depend on the data, are configurable.
+        dmr_plot_cfg = cfg.get("dmr_plots", {}) or {}
+        # Zoom plots and the combined figure are off by default because the
+        # number of files is unknown until comb-p has run -- one zoom plot and
+        # one gene table per significant region cluster.
+        self.dmr_make_zoom: str = "yes" if _to_bool(
+            dmr_plot_cfg.get("make_zoom", "no")) else "no"
+        self.dmr_make_combined: str = "yes" if _to_bool(
+            dmr_plot_cfg.get("make_combined", "no")) else "no"
+        self.dmr_plot_min_probes: int = int(dmr_plot_cfg.get("min_probes", 2))
+        self.dmr_plot_max_y: float = float(dmr_plot_cfg.get("max_y", -1))
+        self.dmr_zoom_padding: int = int(dmr_plot_cfg.get("zoom_padding", 2000))
+        self.dmr_cluster_gap: int = int(dmr_plot_cfg.get("cluster_gap", 3000))
+        self.dmr_combined_formats: str = str(
+            dmr_plot_cfg.get("combined_formats", "pdf"))
 
         # Keep plot kinds centralized
         self._bacon_plot_kinds: List[str] = ["traces", "posteriors", "fit", "qqs"]
@@ -520,6 +549,31 @@ class ConfigWizard(object):
     @property
     def enrichment_trait_results(self) -> Path:
         return self._out("enrichment", f"{self.assoc_var}_enrichment_traits.tsv")
+
+    # One summary plot per enrichment analysis, named by kind so the
+    # plot_enrichment rule can carry a {kind} wildcard.
+    # "features_by_knowledgebase" plots the same table as "features" a second
+    # way: the strongest hit from each knowledgebase rather than the pooled
+    # top N. TFBSrm alone is ~84% of the features tested, so the pooled
+    # ranking is dominated by TF motifs and most knowledgebases never surface.
+    ENRICHMENT_KINDS = ("features", "features_by_knowledgebase",
+                        "pathways", "traits")
+
+    def enrichment_plot(self, kind: str) -> Path:
+        return self._out("enrichment", f"{self.assoc_var}_enrichment_{kind}.jpg")
+
+    def enrichment_plot_files(self) -> List[Path]:
+        if not self.enrichment_plots:
+            return []
+        return [self.enrichment_plot(k) for k in self.ENRICHMENT_KINDS]
+
+    def enrichment_table(self, kind: str) -> Path:
+        return {
+            "features": self.enrichment_feature_results,
+            "features_by_knowledgebase": self.enrichment_feature_results,
+            "pathways": self.enrichment_pathway_results,
+            "traits": self.enrichment_trait_results,
+        }[kind]
 
     @property
     def enrichment_cpg_set(self) -> Path:

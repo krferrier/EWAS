@@ -13,6 +13,7 @@ dmr_targets = [CW.dmr_anno_final, CW.dmr_manhattan_plot]
 enrichment_targets = [CW.enrichment_feature_results,
                       CW.enrichment_pathway_results,
                       CW.enrichment_trait_results]
+enrichment_targets.extend(CW.enrichment_plot_files())
 
 #---- DETERMINE INPUT FILES FOR RULE ALL ----#
 if CW.stratified:
