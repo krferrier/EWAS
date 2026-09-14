@@ -161,7 +161,13 @@ if (faceted) {
 top[, .label := as.character(get(spec$label))]
 top[, .count := suppressWarnings(as.numeric(get(spec$count)))]
 top[, .count := fifelse(is.na(.count), 0, .count)]
-top[, .signif := !is.na(fdr) & fdr < args$fdr_threshold]
+# A factor carrying BOTH levels, not a bare logical: the shape guide should
+# always show the solid/hollow meaning, including on a plot where every point
+# happens to be significant. drop = FALSE on the scale cannot keep a level that
+# a logical vector has no way to declare, so a one-sided plot would otherwise
+# get a one-entry legend that explains nothing.
+top[, .signif := factor(!is.na(fdr) & fdr < args$fdr_threshold,
+                        levels = c(TRUE, FALSE))]
 
 # A strong enrichment over a large feature can produce a p-value below the
 # smallest positive double, where p_value underflows to exactly 0 and
@@ -204,7 +210,7 @@ if (per_group) {
 top[, .wrapped := wrap_labels(.label, args$label_width)]
 top[, .wrapped := factor(.wrapped, levels = .wrapped[order(.logp)])]
 
-n_sig <- sum(top$.signif)
+n_sig <- sum(top$.signif == "TRUE")
 
 # Fallback for a collapsed p-value axis: if the p-values available to this plot
 # have underflowed, capping them puts every point on one vertical line and
@@ -267,19 +273,44 @@ point_layer <- if (has_groups) {
     geom_point(aes(shape = .signif), colour = spec$colour, stroke = 0.9)
 }
 
+# A fully invisible layer carrying BOTH significance levels, so the shape guide
+# always explains solid vs hollow -- including on a plot where every point
+# passed the threshold, or none did. drop = FALSE on the scale is not enough:
+# ggplot2 (4.0.3) will emit the key label for an unused level but has no data
+# row to draw a glyph from, so the entry renders as a bare label. override.aes
+# cannot fill that in either; the key needs to exist. Anchored on the first
+# real point rather than at Inf (which bleeds a clipped mark into the panel
+# corner), at size 0 and alpha 0, and carrying .facet so facet_wrap does not
+# open an extra NA panel. Verified not to alter the panel ranges.
+key_layer <- geom_point(
+    data = data.table(.x = top$.x[1], .wrapped = top$.wrapped[1],
+                      .facet = top$.facet[1],
+                      .signif = factor(c(TRUE, FALSE), levels = c(TRUE, FALSE))),
+    aes(x = .x, y = .wrapped, shape = .signif),
+    size = 0, alpha = 0, inherit.aes = FALSE)
+
 p <- ggplot(top, aes(x = .x, y = .wrapped, size = .count, alpha = .count)) +
     # The threshold that decides solid vs hollow, on the axis itself.
     geom_vline(xintercept = if (use_effect) NA_real_
                             else -log10(args$fdr_threshold),
                linetype = "dashed", colour = "grey55", linewidth = 0.3) +
     point_layer +
+    key_layer +
     scale_shape_manual(
         values = c(`TRUE` = 19, `FALSE` = 1),
-        breaks = c(TRUE, FALSE),
+        breaks = c("TRUE", "FALSE"),
+        limits = c("TRUE", "FALSE"),
         labels = c(sprintf("FDR < %g", args$fdr_threshold),
                    sprintf("FDR >= %g", args$fdr_threshold)),
         drop = FALSE, name = NULL) +
     scale_alpha(range = c(0.65, 1), guide = "none") +
+    # Point size and alpha are data-mapped, so the key for a level with no rows
+    # in this plot has nothing to draw from and renders as a bare label. Fix
+    # the key glyphs explicitly. Colour is neutral when colour already encodes
+    # the knowledgebase, so the shape key cannot be read as a group.
+    guides(shape = guide_legend(
+        override.aes = list(size = 2.5, alpha = 1,
+                            colour = if (has_groups) "grey25" else spec$colour))) +
     scale_size(range = c(1.5, 6), name = paste("Number of", spec$unit)) +
     labs(x = x_lab, y = spec$axis,
          title = plot_title,

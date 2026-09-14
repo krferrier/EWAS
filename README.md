@@ -507,6 +507,9 @@ Two deliberate choices in how these read:
    computed on the log scale, and the plots use those. `gometh` returns a
    linear FDR only, so the pathways plot falls back to a labelled cap, and if
    an axis does collapse the plot switches to fold enrichment and says so.
+   The shape legend always lists both `FDR < threshold` and `FDR >= threshold`,
+   even when every plotted result falls on one side, so a plot of all-
+   significant results still says what solid and hollow mean.
 3. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
    collection*, each panel on its own x axis. This is not only cosmetic:
    `enrich_pathways.R` calls `gometh` once per collection and keeps each
