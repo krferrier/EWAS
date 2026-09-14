@@ -160,9 +160,13 @@ enrichment:
 # chunk_size:      CpGs per EWAS chunk. Larger uses more memory per worker.
 # processing_type: sequential | multisession | multicore | cluster.
 #                  Use "cluster" when Snakemake submits to a scheduler,
-#                  "multicore" on a single machine, "sequential" to debug.
+#                  "multicore" or "multisession" on a single machine 
+#                  ("multicore" for linux/Mac, "multisession" for Windows),
+#                  "sequential" to debug.
 # workers:         workers per job. Keep at or below the cores you give
-#                  Snakemake (profiles/default/config.v8+.yaml sets cores).
+#                  Snakemake (profiles/default/config.v8+.yaml sets cores to 1 by 
+#                  default, but this can be changed by appending `-j <n-cores>` to
+#                  your snakemake command).
 chunk_size: 5000
 processing_type: "cluster"
 workers: 4

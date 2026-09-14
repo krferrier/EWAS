@@ -1,4 +1,7 @@
-from helper_fxns import ConfigWizard
+import sys
+
+from helper_fxns import (ConfigWizard, record_run_provenance,
+                         finalize_run_provenance)
 from snakemake.utils import validate
 
 configfile: "config.yml"
@@ -40,3 +43,21 @@ include: "rules/plots.smk"
 include: "rules/dmr.smk"
 # after annotate.smk: references rules.fetch_kycg_features
 include: "rules/enrichment.smk"
+
+
+#---- RUN PROVENANCE ----#
+# Saves the command line and the configuration file into
+# <out_directory>/provenance/<run_id>/ so a results directory always carries a
+# record of how it was produced. See helper_fxns.record_run_provenance for why
+# this is a handler rather than a rule.
+_run_provenance = None
+
+onstart:
+    global _run_provenance
+    _run_provenance = record_run_provenance(CW, workflow, config, sys.argv)
+
+onsuccess:
+    finalize_run_provenance(_run_provenance, "success")
+
+onerror:
+    finalize_run_provenance(_run_provenance, "error")

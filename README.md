@@ -5,13 +5,48 @@ This repository is a snakemake workflow for performing Epigenome-Wide Associatio
 
 If your main predictor is categorical (with 2 levels), the values must be dummy coded to numerics. All other categorical covariates can remain as characters. The R glm() function is unable to use unordered categorical data as the main predictor because it cannot determine which of the values to use as the reference. The pipeline has not yet been tested with a main predictor that has more than two categorical levels. Automatic handling of predictors that are categorical/character values will be added in the next major update.
 
-Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. BACON >= 1.32.0 (Bioconductor 3.19) is required and pinned in `envs/ewas.yaml`: earlier versions lack the `globalSeed` and `parallelSeed` arguments this workflow relies on for reproducible Gibbs sampling. The ggplot2 diagnostic plots in `scripts/updated_bacon/modified_bacon_plots.R` are local additions to the package, not overrides. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
+Results from the linear regression analyses will be adjusted for bias and inflation using a Bayesian approach implemented by the [BACON](https://www.bioconductor.org/packages/release/bioc/html/bacon.html) R package. BACON >= 1.32.0 (Bioconductor 3.19) is required and pinned in `envs/ewas.yaml`: earlier versions lack the `globalSeed` and `parallelSeed` arguments this workflow relies on for reproducible Gibbs sampling. The ggplot2 diagnostic plots in `scripts/updated_bacon/modified_bacon_plots.R` are local modifications to the package, so the plots are created with ggplot instead of base R. It is strongly recommended to assess the performance of the bias and inflation adjustment by viewing the traces, posteriors, fit, and qq plots output at this step. Further details on how to assess the performance plots are provided below. If the EWAS was stratified, after adjustment for bias and inflation, the results from all the strata will be combined using an inverse-variance weighted meta-analysis approach with the command line tool [METAL](https://genome.sph.umich.edu/wiki/METAL_Documentation).
 
 The final EWAS results are annotated from three sources: gene and promoter assignments from the [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation) Infinium manifest, CpG-island context derived from the UCSC `cpgIslandExt` track, and whole-blood *cis*-eQTM genes from BIOS. A manhattan and qq plot of the final EWAS results is also output. See [Annotation Resources](#annotation-resources) for what each contributes and how it is versioned, and [Annotated Results Columns](#annotated-results-columns) for the output file layout.
 
-The significant CpG set is then assessed automatically for functional, pathway and trait enrichment — chromatin states and other KYCG feature sets, GO and KEGG terms, and published EWAS Atlas trait associations — all tested against the CpGs actually analysed rather than the whole array. See [Functional Enrichment](#functional-enrichment).
+The significant CpG set is then assessed automatically for functional, pathway and trait enrichment — chromatin states and other [Know Your CpG (KYCG)](https://zhou-lab.github.io/kycg/) feature sets, GO and KEGG terms, and published EWAS Atlas trait associations — all tested against the CpGs actually analysed rather than the whole array. See [Functional Enrichment](#functional-enrichment).
 
 This workflow can also perform differentially methylated region (DMR) analysis using the EWAS summary statistics. The DMR is conducted with the [comb-p](https://github.com/brentp/combined-pvalues) command-line tool. Parameters for performing the DMR can be modified in the config.yaml. 
+
+## Workflow at a glance
+
+Optional stages are labelled with the config setting that switches them on;
+rule names are in parentheses.
+
+```mermaid
+flowchart TD
+    IN["M-value matrix + phenotype table"]
+    RES["Annotation resources: Zhou manifest, KYCG,<br/>UCSC tracks, BIOS eQTM, EWAS Atlas"]
+
+    IN -- "stratified_ewas: no" --> REG["Linear regression per CpG<br/>(run_combined_ewas)"]
+    IN -- "stratified_ewas: yes" --> ST["Split into strata<br/>(stratify_data)"]
+    ST --> REGG["Linear regression per CpG, per stratum<br/>(run_ewas_group)"]
+
+    REG --> BAC["Bias and inflation adjustment<br/>+ diagnostic plots<br/>(run_bacon)"]
+    REGG --> BACG["Bias and inflation adjustment<br/>+ diagnostic plots, per stratum<br/>(run_bacon_group)"]
+    BACG --> META["Inverse-variance weighted meta-analysis<br/>(make_metal_script, run_metal)"]
+
+    BAC --> ANN["Annotate CpGs: genes, CpG islands,<br/>eQTM, KYCG features<br/>(add_annotation)"]
+    META --> ANN
+    RES --> ANN
+
+    ANN --> PLT["Manhattan and QQ plots<br/>(plot_results)"]
+    ANN -- "enrichment.run: yes" --> ENR["Feature, GO/KEGG and trait enrichment<br/>(enrich_features, enrich_pathways, enrich_traits)"]
+    RES --> ENR
+    ANN -- "dmr_analysis: yes" --> BED["Annotated results to BED<br/>(make_bed)"]
+    BED --> DMR["Region calling with comb-p<br/>(run_dmr)"]
+    DMR --> DANN["Annotate regions, manhattan plot<br/>(annotate_dmrs, plot_dmrs)"]
+    RES --> DANN
+```
+
+Every run that executes at least one job also records its own command line and
+configuration -- see [Run Provenance](#run-provenance). Rule-level graphs of the
+complete workflow for both modes are in `data/example_dags/`.
 
 # Dependencies
 
@@ -26,7 +61,7 @@ This workflow can also perform differentially methylated region (DMR) analysis u
 
 ## Modifying the Configuration File
 
-This workflow uses a configuration file, `config.yml`, to specify the paths for input and output files, what kind of EWAS to perform (standard or stratified), and parallelization parameters.
+This workflow uses a configuration file, `config.yml`, to specify the paths for input and output files, what kind of EWAS to perform (standard or stratified), parallelization parameters, whether to run DMR, and whether to perform the functional analyses.
 
 ### *Input Files*
 
@@ -40,23 +75,138 @@ This workflow is intended to be used with phenotype and methylation data that ha
 
 ### *Output Files*
 
-Output files will be generated in the 'out_directory' specified in the config file.
+<a name="output-files"></a>
 
-**Standard EWAS**:
+Everything is written under the `out_directory` set in the config file. In the
+paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
+`stratify_variables` (so a stratified run repeats those files once per stratum).
 
-* raw linear regression results (.csv or .csv.gz)
-* BACON bias- and inflation-adjusted results (.csv or .csv.gz) and plots (.jpg)
-* final annotated results (.csv or .csv.gz)
-* manhattan and qq plots (.jpg)
-* differentially methylated region results
+```
+<out_directory>/
+|
+|-- provenance/                                  how this run was invoked
+|   |-- runs.tsv                                 append-only index: run_id, times, status, command
+|   `-- <run_id>/
+|       |-- command.txt                          the exact command line
+|       |-- config_snapshot.yml                  verbatim copy of the config file used
+|       |-- config_resolved.yml                  config after --config overrides
+|       `-- run_info.yml                         versions, git state, host, timings, status
+|
+|-- <assoc>_ewas_results.csv.gz                  STANDARD ONLY: raw per-CpG regression
+|-- <assoc>_ewas_bacon_results.csv.gz            STANDARD ONLY: bias/inflation adjusted
+|-- bacon_plots/                                 STANDARD ONLY: BACON diagnostics
+|   |-- <assoc>_traces.jpg
+|   |-- <assoc>_posteriors.jpg
+|   |-- <assoc>_fit.jpg
+|   `-- <assoc>_qqs.jpg
+|
+|-- <stratum>/                                   STRATIFIED ONLY: one directory per stratum
+|   |-- <stratum>_pheno.fst                      temporary, removed when the stratum finishes
+|   |-- <stratum>_mvals.fst                      temporary, removed when the stratum finishes
+|   |-- <stratum>_<assoc>_ewas_results.csv.gz    raw per-CpG regression for this stratum
+|   |-- <stratum>_<assoc>_ewas_bacon_results.csv.gz
+|   `-- bacon_plots/
+|       |-- <stratum>_<assoc>_traces.jpg
+|       |-- <stratum>_<assoc>_posteriors.jpg
+|       |-- <stratum>_<assoc>_fit.jpg
+|       `-- <stratum>_<assoc>_qqs.jpg
+|-- meta_analysis/
+|   `-- <assoc>_metal_commands.sh                STRATIFIED ONLY: generated METAL script
+|-- <assoc>_ewas_meta_analysis_results_1.txt     STRATIFIED ONLY: METAL output
+|
+|-- <assoc>_ewas_annotated_results.csv.gz        final results, annotated (both modes)
+|-- <assoc>_ewas_manhattan_qq_plots.jpg          manhattan + QQ of the final results
+|
+|-- enrichment/                                  only when enrichment.run: "yes"
+|   |-- <assoc>_enrichment_features.tsv          KYCG feature over-representation
+|   |-- <assoc>_enrichment_pathways.tsv          GO and KEGG terms
+|   `-- <assoc>_enrichment_traits.tsv            EWAS Atlas trait associations
+|
+|-- <assoc>_ewas_annotated_results.bed           only when dmr_analysis: "yes": comb-p input
+`-- dmr/                                         only when dmr_analysis: "yes"
+    |-- <assoc>_ewas.args.txt                    comb-p arguments used
+    |-- <assoc>_ewas.acf.txt                     autocorrelation by distance lag
+    |-- <assoc>_ewas.slk.bed.gz                  per-CpG p-values after Stouffer-Liptak-Kechris
+    |-- <assoc>_ewas.fdr.bed.gz                  the above with Benjamini-Hochberg FDR
+    |-- <assoc>_ewas.regions.bed.gz              called regions
+    |-- <assoc>_ewas.regions-p.bed.gz            called regions with region-level p-values
+    |-- <assoc>_ewas.manhattan.png               comb-p's own manhattan plot
+    |-- <assoc>_dmr_annotated_results.tsv        regions annotated with genes and CpG islands
+    `-- <assoc>_dmr_manhattan.jpg                manhattan plot of the annotated regions
+```
 
-**Stratified EWAS**:
+A note on the DMR files: `run_dmr` declares six of comb-p's outputs as rule
+outputs. comb-p writes some additional intermediates (for example
+`<assoc>_ewas.regions-t.bed.gz`) that Snakemake does not track, so they are not
+cleaned up or re-created on a rerun. Not all region files appear if no region
+reaches significance.
 
-* raw linear regression results (.csv or .csv.gz) for each stratum
-* BACON bias- and inflation-adjusted results (.csv or .csv.gz) and plots (.jpg) for each stratum
-* final meta-analyzed and annotated results (.csv or .csv.gz)
-* manhattan and qq plots (.jpg)  
-* differentially methylated region results
+Annotation resources are cached outside `out_directory`, under
+`annotation.cache_dir` (default `resources/annotation/`) so they are downloaded
+once and shared across runs. METAL is built once into `software/metal/`. See
+[Annotation Resources](#annotation-resources).
+
+#### What each stage produces
+
+**EWAS** (`run_combined_ewas` / `stratify_data` + `run_ewas_group`)
+
+* Raw per-CpG linear regression results: effect size, standard error, test
+  statistic and p-value for the association variable, one row per CpG.
+* A stratified run writes one of these per stratum, into `<stratum>/`. The
+  per-stratum `.fst` phenotype and M-value subsets are marked `temp()`, so
+  Snakemake deletes them once the stratum's results exist.
+
+**BACON** (`run_bacon` / `run_bacon_group`)
+
+* Bias- and inflation-adjusted results, adding `bacon.es`, `bacon.se`,
+  `bacon.statistic`, `bacon.pval` and the genomic inflation factors `lambda`
+  (before) and `b.lambda` (after).
+* Four diagnostic plots per run or per stratum -- traces, posteriors, fit and
+  QQ. Check these before trusting the adjustment; see
+  [Interpretation of BACON Performance Plots](#interpretation-of-bacon-performance-plots).
+
+**Meta-analysis** (`make_metal_script`, `run_metal`, stratified only)
+
+* A generated METAL command script, kept so the meta-analysis is reproducible
+  and inspectable.
+* METAL's inverse-variance weighted results across strata: `MarkerName`,
+  `Effect`, `StdErr`, `P-value` and `Direction`, the last giving one character
+  per stratum so you can see whether strata agree in sign.
+
+**Annotation** (`add_annotation`)
+
+* The final results table: the EWAS or meta-analysis statistics with annotation
+  columns joined on, sorted by p-value. This is the file to work from.
+* Gene and transcript assignments, CpG-island context, whole-blood eQTM genes
+  and KYCG feature columns. Every column is listed in
+  [Annotated Results Columns](#annotated-results-columns).
+* The rule reports the fraction of result CpGs it could annotate and stops if
+  that falls below a floor, which is what catches a mismatch between
+  `annotation.array_platform` and the array the M-values came from.
+
+**Enrichment** (`enrich_features`, `enrich_pathways`, `enrich_traits`)
+
+* Three tables testing the significant CpG set for over-representation of KYCG
+  features, GO/KEGG terms and published EWAS Atlas traits, against the CpGs
+  actually tested rather than the whole array. Details and caveats in
+  [Functional Enrichment](#functional-enrichment).
+
+**DMR** (`make_bed`, `run_dmr`, `annotate_dmrs`, `plot_dmrs`)
+
+* A BED of the annotated results, which is comb-p's input.
+* comb-p's intermediates: the arguments used, the autocorrelation function by
+  distance lag, per-CpG p-values corrected for local correlation, and the same
+  with FDR. The `.acf.txt` is worth a look -- it shows the distance over which
+  neighbouring CpGs are correlated, which sets how regions get built.
+* The called regions, with and without region-level p-values, plus comb-p's own
+  manhattan plot.
+* The final annotated region table, with genes and CpG-island context attached,
+  and a manhattan plot of those regions.
+
+**Provenance** (`onstart` / `onsuccess` / `onerror` handlers)
+
+* A per-run record of the command and configuration that produced everything
+  above. See [Run Provenance](#run-provenance).
 
 ### *Annotation Resources*
 
@@ -248,6 +398,45 @@ The Atlas is keyed on bare `cg` identifiers, so an EPICv2 or MSA run that keeps
 the design suffix will not match; the rule reports this rather than returning
 an empty result silently.
 
+### *Run Provenance*
+
+<a name="run-provenance"></a>
+
+Every run that executes at least one job records how it was invoked, under
+`<out_directory>/provenance/<run_id>/`, where `run_id` is the UTC-offset start
+time (`20260914T135105`):
+
+| File | Contents |
+|------|----------|
+| `command.txt` | The exact command line, shell-quoted so it can be pasted back, followed by one argument per line for long invocations. |
+| `config_snapshot.yml` | Byte-for-byte copy of each configuration file used. A second and subsequent file is saved as `config_snapshot.2.<name>`. |
+| `config_resolved.yml` | The merged configuration Snakemake actually ran with, including any `--config` overrides. This, not the snapshot, is what the workflow saw. |
+| `run_info.yml` | Snakemake and Python versions, workflow git commit/branch/dirty state, host, user, working directory, start and end time, duration, and final status. |
+
+`provenance/runs.tsv` is an append-only index across runs -- `run_id`,
+`started`, `ended`, `status`, `command` -- so you can see at a glance which
+invocation produced a given results directory and whether it finished.
+
+Nothing needs configuring; the records follow `out_directory`.
+
+#### Why this is a handler and not a rule
+
+It is implemented with Snakemake's `onstart`, `onsuccess` and `onerror`
+handlers rather than as a workflow rule, because a rule cannot do the job
+correctly:
+
+1. A rule's output is cached. On the second invocation the file is already present and up to date, the rule does not re-run, and the recorded command stays stale from the first run -- exactly backwards for a provenance record.
+2. Making the output unique per run means putting a timestamp in the path, but the Snakefile is re-parsed by every job subprocess. Each would compute a different timestamp and the target would stop matching.
+3. A rule body executes in a job subprocess, where `sys.argv` is Snakemake's own re-invocation (`--target-jobs ... --mode subprocess`), not the command you typed. `onstart` runs in the main process, where `sys.argv` is the real command line.
+
+One consequence to be aware of: the handlers fire only when Snakemake actually
+executes jobs. A dry run, or a run reporting "Nothing to be done", writes no
+record. That is intended -- no results were produced, and the record from the
+run that did produce them is already on disk.
+
+Provenance failures never stop an analysis: a problem writing the record prints
+a `[provenance] WARNING` and the run continues.
+
 ### *Parallelization Parameters*
 
 The rule 'ewas' first chunks the methylation dataset into sets of CpGs where the length of each set is specified by the parameter `chunks` in the config file (default of 1000 CpGs if a number is not provided). Then, linear regressions are run for each chunk and the results combined back into one dataframe once all chunks have been processed. Run sequentially, this step could take several hours. However, each chunk can be processed in parallel to reduce the total computation time.
@@ -281,7 +470,17 @@ It can also be helpful to export a Directed Acyclic Graph (DAG) of the workflow,
 snakemake --dag --rule plot_results | dot -Tpng > dag.png
 ```
 
-Examples of DAGs for a standard and stratified EWAS can be found in `data/example_dags`.
+Examples of DAGs for a standard and stratified EWAS can be found in
+`data/example_dags`. That directory also holds rule-level graphs, which are
+much easier to read than the job DAG on a stratified run because they show one
+node per rule rather than one per job:
+
+```shell
+snakemake --rulegraph | dot -Tpng > rulegraph.png
+```
+
+* `data/example_dags/standard_ewas_rulegraph.png`
+* `data/example_dags/stratified_ewas_rulegraph.png`
 
 ## Run EWAS
 
@@ -302,6 +501,8 @@ For a stratified EWAS, once the `run_ewas` step has been reached, a`/log` direct
 ```shell
 tail -F log/<stratum>_ewas.log
 ```
+
+<a name="interpretation-of-bacon-performance-plots"></a>
 
 # Interpretation of BACON Performance Plots
 

@@ -565,3 +565,243 @@ class ConfigWizard(object):
     @property
     def dmr_annotation_manifest(self) -> Path:
         return self.dmr_anno_resource_dir.joinpath("annotation_manifest.tsv")
+
+    # ---------- Run provenance ----------
+    @property
+    def provenance_dir(self) -> Path:
+        """Per-run record of the command and configuration that produced the results."""
+        return self._out("provenance")
+
+    @property
+    def provenance_log(self) -> Path:
+        """One line per run: run_id, times, status, command."""
+        return self.provenance_dir.joinpath("runs.tsv")
+
+
+# ---------------------------------------------------------------------------
+# Run provenance
+#
+# Written from the Snakefile's onstart/onsuccess/onerror handlers rather than
+# from a rule. Three reasons a rule does not work here:
+#
+#   * A rule's output is cached. On a second invocation the file is already
+#     present and up to date, so the rule does not re-run and the recorded
+#     command stays stale from the first run -- the opposite of what a
+#     provenance record is for.
+#   * Making the output unique per run means a timestamp in the path, and the
+#     Snakefile is re-parsed by every job subprocess. Each would compute a
+#     different timestamp and the target would stop matching.
+#   * A rule body runs in a job subprocess, where sys.argv is Snakemake's
+#     internal re-invocation ("--target-jobs ... --mode subprocess"), not the
+#     command the user typed. onstart runs in the main process, where sys.argv
+#     is the real command line.
+#
+# Consequence worth knowing: these handlers fire only when Snakemake actually
+# executes jobs. A dry run, or a run that reports "Nothing to be done", writes
+# no record -- correct, since no results were produced, and the record from the
+# run that did produce them is already on disk.
+# ---------------------------------------------------------------------------
+
+def _git_state(repo_dir: Union[str, Path]) -> Dict[str, str]:
+    """Commit, branch and dirty flag for the workflow checkout, if it is one."""
+    import subprocess
+
+    def _git(*args: str) -> Optional[str]:
+        try:
+            out = subprocess.run(
+                ["git", "-C", str(repo_dir), *args],
+                capture_output=True, text=True, timeout=10,
+            )
+            return out.stdout.strip() if out.returncode == 0 else None
+        except Exception:
+            return None
+
+    if _git("rev-parse", "--is-inside-work-tree") != "true":
+        return {"commit": "not_a_git_checkout"}
+    status = _git("status", "--porcelain")
+    return {
+        "commit": _git("rev-parse", "HEAD") or "unknown",
+        "branch": _git("rev-parse", "--abbrev-ref", "HEAD") or "unknown",
+        "describe": _git("describe", "--tags", "--always", "--dirty") or "unknown",
+        "dirty": "yes" if status else "no",
+        "uncommitted_files": str(len(status.splitlines())) if status else "0",
+    }
+
+
+def record_run_provenance(CW, workflow, config, argv) -> Optional[Path]:
+    """Snapshot the command and configuration for this run.
+
+    Creates <out_directory>/provenance/<run_id>/ containing:
+      command.txt          the exact command line, and each argument on its own
+                           line so long invocations stay readable
+      config_snapshot.yml  verbatim copy of every configuration file used
+      config_resolved.yml  the merged configuration Snakemake actually ran with,
+                           including any --config overrides
+      run_info.yml         Snakemake and Python versions, workflow git state,
+                           host, user, working directory and start time
+
+    Never raises: a provenance failure warns and returns None rather than
+    taking down an analysis run.
+    """
+    import getpass
+    import platform
+    import shutil
+    import socket
+    import sys
+    from datetime import datetime, timezone
+
+    try:
+        import yaml
+
+        started = datetime.now(timezone.utc).astimezone()
+        base = CW.provenance_dir
+        run_id = started.strftime("%Y%m%dT%H%M%S")
+        run_dir = base.joinpath(run_id)
+        suffix = 2
+        while run_dir.exists():
+            run_dir = base.joinpath(f"{run_id}_{suffix}")
+            suffix += 1
+        run_dir.mkdir(parents=True)
+
+        # --- the command ---
+        command = " ".join(shlex_quote(a) for a in argv)
+        with open(run_dir.joinpath("command.txt"), "w") as fh:
+            fh.write("# Command that produced the results in this directory.\n")
+            fh.write(f"# Run {run_dir.name}, started {started.isoformat()}\n")
+            fh.write(f"# Working directory: {os.getcwd()}\n\n")
+            fh.write(command + "\n\n")
+            fh.write("# One argument per line:\n")
+            for a in argv:
+                fh.write(f"#   {a}\n")
+
+        # --- the configuration files, verbatim ---
+        seen, copied = set(), []
+        for cf in (workflow.configfiles or []):
+            src = Path(str(cf))
+            if not src.is_file():
+                continue
+            key = src.resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            dest_name = ("config_snapshot.yml" if not copied
+                         else f"config_snapshot.{len(copied) + 1}.{src.name}")
+            shutil.copyfile(src, run_dir.joinpath(dest_name))
+            copied.append({"source": str(key), "saved_as": dest_name})
+
+        # --- the configuration actually used, after --config overrides ---
+        with open(run_dir.joinpath("config_resolved.yml"), "w") as fh:
+            fh.write("# Merged configuration Snakemake ran with, including any\n")
+            fh.write("# --config overrides. This, not config_snapshot.yml, is\n")
+            fh.write("# what the workflow actually saw.\n")
+            yaml.safe_dump(_plain(dict(config)), fh, default_flow_style=False,
+                           sort_keys=False)
+
+        # --- everything else ---
+        try:
+            import snakemake
+            smk_version = getattr(snakemake, "__version__", "unknown")
+        except Exception:
+            smk_version = "unknown"
+
+        info = {
+            "run_id": run_dir.name,
+            "started": started.isoformat(),
+            "status": "running",
+            "command": command,
+            "working_directory": os.getcwd(),
+            "snakefile": str(getattr(workflow, "main_snakefile", "unknown")),
+            "config_files": copied,
+            "snakemake_version": smk_version,
+            "python_version": sys.version.split()[0],
+            "host": socket.gethostname(),
+            "user": _safe(getpass.getuser),
+            "platform": platform.platform(),
+            "workflow_git": _git_state(
+                Path(str(getattr(workflow, "main_snakefile", "."))).parent),
+        }
+        with open(run_dir.joinpath("run_info.yml"), "w") as fh:
+            yaml.safe_dump(info, fh, default_flow_style=False, sort_keys=False)
+
+        # --- append-only index across runs ---
+        log = CW.provenance_log
+        if not log.exists():
+            with open(log, "w") as fh:
+                fh.write("run_id\tstarted\tended\tstatus\tcommand\n")
+        with open(log, "a") as fh:
+            fh.write(f"{run_dir.name}\t{started.isoformat()}\t\trunning\t{command}\n")
+
+        print(f"[provenance] recording this run in {run_dir}")
+        return run_dir
+    except Exception as exc:  # never fail a run over bookkeeping
+        print(f"[provenance] WARNING: could not record run provenance: {exc}")
+        return None
+
+
+def finalize_run_provenance(run_dir: Optional[Path], status: str) -> None:
+    """Record the outcome once the workflow finishes."""
+    if run_dir is None:
+        return
+    try:
+        import yaml
+        from datetime import datetime, timezone
+
+        ended = datetime.now(timezone.utc).astimezone()
+        info_path = Path(run_dir).joinpath("run_info.yml")
+        info = {}
+        if info_path.is_file():
+            with open(info_path) as fh:
+                info = yaml.safe_load(fh) or {}
+        info["status"] = status
+        info["ended"] = ended.isoformat()
+        started = info.get("started")
+        if started:
+            try:
+                info["duration_seconds"] = round(
+                    (ended - datetime.fromisoformat(started)).total_seconds(), 1)
+            except Exception:
+                pass
+        with open(info_path, "w") as fh:
+            yaml.safe_dump(info, fh, default_flow_style=False, sort_keys=False)
+
+        # rewrite this run's line in the index
+        log = Path(run_dir).parent.joinpath("runs.tsv")
+        if log.is_file():
+            lines = log.read_text().splitlines(keepends=True)
+            run_id = Path(run_dir).name
+            for i, line in enumerate(lines):
+                if line.startswith(run_id + "\t"):
+                    parts = line.rstrip("\n").split("\t")
+                    while len(parts) < 5:
+                        parts.append("")
+                    parts[2], parts[3] = ended.isoformat(), status
+                    lines[i] = "\t".join(parts) + "\n"
+                    break
+            log.write_text("".join(lines))
+    except Exception as exc:
+        print(f"[provenance] WARNING: could not finalize run provenance: {exc}")
+
+
+def shlex_quote(s: str) -> str:
+    import shlex
+    return shlex.quote(str(s))
+
+
+def _safe(fn):
+    try:
+        return fn()
+    except Exception:
+        return "unknown"
+
+
+def _plain(obj):
+    """Make a config tree safe for yaml.safe_dump (Paths, sets, numpy scalars)."""
+    if isinstance(obj, dict):
+        return {str(k): _plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_plain(v) for v in obj]
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return obj
+    return str(obj)
