@@ -32,6 +32,7 @@ class ConfigWizard(object):
         "bios_eqtm_url", "hgnc_complete_set_url",
         "enrichment", "enrich_significance", "enrich_threshold",
         "enrich_min_set_size", "ewas_atlas_url", "_enrich_kbs",
+        "enrich_fdr_by_kb",
         "enrichment_plots", "enrich_plot_top_n",
         "dmr_make_zoom", "dmr_make_combined", "dmr_plot_min_probes",
         "dmr_plot_max_y", "dmr_zoom_padding", "dmr_cluster_gap",
@@ -156,6 +157,13 @@ class ConfigWizard(object):
         self.enrich_min_set_size: int = int(enrich_cfg.get("min_set_size", 20))
         # Which KYCG knowledgebases to test. A list of set names, or "all".
         self._enrich_kbs = enrich_cfg.get("knowledgebases")
+        # Each knowledgebase is a separate enrichment analysis, so by default
+        # the FDR is computed within one rather than pooled across all of them
+        # -- otherwise the FDR for a chromatin state depends on how many TF
+        # motifs happened to be tested alongside it. This matches
+        # knowYourCG::testEnrichment, whose mtc_by_group defaults to TRUE.
+        self.enrich_fdr_by_kb: str = str(
+            enrich_cfg.get("fdr_by_knowledgebase", "yes")).lower()
         self.ewas_atlas_url: str = str(
             enrich_cfg.get(
                 "ewas_atlas_url",
@@ -461,9 +469,14 @@ class ConfigWizard(object):
     #   ChromHMM       chromatin state -- the most directly interpretable
     #   PMD            partially methylated domains
     #   ABCompartment  Hi-C A/B compartments
-    #   rmsk1          repeat classes (rmsk2 is the same annotation, finer)
+    #   rmsk1, rmsk2   repeat classes and families
+    #   TFBSrm         transcription factor binding, 1188 motifs
     #   ImprintingDMR  a positive control: a hit means allele-specific biology
     #   CTCFbind       methylation-sensitive CTCF binding; one test
+    #
+    # rmsk2 and TFBSrm are included because the FDR is computed within each
+    # knowledgebase, not across all of them, so a large set no longer spends
+    # anything the smaller sets need. See enrich_fdr_by_kb.
     #
     # Left out on purpose. Design and QC sets (ProbeType, InfiniumChemistry,
     # Blacklist, nFlankCG) are not biology -- Blacklist and CTCF binding are
@@ -472,15 +485,13 @@ class ConfigWizard(object):
     # CGIposition column this workflow derives from UCSC islands.
     # REMCChromHMM restates ChromHMM from a different reference, and HM is the
     # histone data ChromHMM states are called from, so both are largely nested
-    # in it. TFBSrm is 1188 motifs -- on EPIC that is 84% of all features
-    # tested, which costs every other set FDR power. Tetranuc2 is sequence
-    # composition and overlaps nFlankCG.
+    # in it. Tetranuc2 is sequence composition and overlaps nFlankCG.
     #
     # Widen with `enrichment: knowledgebases:` in the config -- a list of set
     # names, or "all" for everything the platform publishes.
     KYCG_ENRICHMENT_SETS = (
-        "ChromHMM", "PMD", "ABCompartment", "rmsk1", "ImprintingDMR",
-        "CTCFbind",
+        "ChromHMM", "PMD", "ABCompartment", "rmsk1", "rmsk2", "TFBSrm",
+        "ImprintingDMR", "CTCFbind",
     )
 
     @property

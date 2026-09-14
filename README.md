@@ -452,7 +452,8 @@ Zhou publishes far more than is worth testing: 17 sets for EPIC, 32 for MSA.
 | `ChromHMM` | chromatin state, the most directly interpretable annotation here |
 | `PMD` | partially methylated domains |
 | `ABCompartment` | Hi-C A/B compartments |
-| `rmsk1` | repeat classes |
+| `rmsk1`, `rmsk2` | repeat classes and families |
+| `TFBSrm` | transcription factor binding, 1,188 motifs |
 | `ImprintingDMR` | positive control -- a hit means real allele-specific biology |
 | `CTCFbind` | methylation-sensitive CTCF binding; one test |
 
@@ -476,9 +477,10 @@ back by name:
    states are *called from*, so the two are nested; `rmsk2` is `rmsk1` at
    family rather than class resolution; `Tetranuc2` is sequence composition
    and overlaps `nFlankCG`.
-4. **Too large to be worth its FDR cost.** `TFBSrm` is 1,188 motifs -- 84% of
-   every feature tested on EPIC. Testing it makes the BH denominator roughly
-   eight times larger, which every other set pays for.
+
+`TFBSrm` and `rmsk2` are in that list *because* the FDR is computed within each
+knowledgebase (below). Pooled, `TFBSrm`'s 1,188 motifs would be 84% of every
+feature tested on EPIC and every other set would pay for them.
 
 ##### Is enrichment testing even the right question for these?
 
@@ -511,6 +513,35 @@ but because the domains are so large that the test has little dynamic range. It
 is still worth one test. Repeats, by contrast, are among the better-behaved
 sets to test: `rmsk1` has real headroom, so the question is whether repeat
 methylation is part of your hypothesis, not whether the test is valid.
+
+##### The FDR is computed within each knowledgebase
+
+Each knowledgebase is a separate enrichment analysis, so pooling them into one
+BH family makes the FDR for a chromatin state depend on how many TF motifs
+happened to be tested alongside it. `enrichment.fdr_by_knowledgebase` therefore
+defaults to `yes`, which is also what `knowYourCG::testEnrichment` does --
+its `mtc_by_group` defaults to `TRUE` and splits on the knowledgebase group.
+
+It matters most at the threshold. For a feature ranked first in its set:
+
+| Nominal p | Set (family size) | FDR within | FDR pooled (n = 1,324) |
+|---|---|---|---|
+| 0.001 | `ChromHMM` (18) | 0.018 | 1.0 |
+| 0.001 | `PMD` (2) | 0.002 | 1.0 |
+| 0.001 | `rmsk1` (8) | 0.008 | 1.0 |
+| 1e-5 | `TFBSrm` (1,107) | 0.011 | 0.013 |
+
+So a chromatin state at p = 0.001 is significant within its own family and
+invisible pooled, while a motif is barely affected -- pooling quietly transfers
+power from the small sets to the large one.
+
+The trade is that q-values from families of very different sizes are no longer
+a single ranking: a motif needs stronger evidence than a chromatin state to
+reach the same FDR. The features table records `n_tested_in_kb` so family size
+is visible, and the pooled plot's subtitle says the correction was per
+knowledgebase. Ordering that plot by FDR anyway follows the reference, whose
+`KYCG_plotDot` defaults to `order_by = "FDR"` alongside `mtc_by_group = TRUE`.
+Set `fdr_by_knowledgebase: "no"` for one pooled family instead.
 
 One caveat that applies to all of these and not to the pathway results:
 **nothing here is adjusted for anything.** `gometh` corrects for the number of

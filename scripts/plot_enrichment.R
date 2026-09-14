@@ -251,6 +251,12 @@ if (faceted) {
         nrow(top), nrow(dt))
 } else {
     head_desc <- sprintf("top %d of %d tested by FDR", nrow(top), nrow(dt))
+    # n_tested_in_kb varying means enrich_features.R corrected within each
+    # knowledgebase, so these q-values come from families of different sizes
+    # and are not one ranking. Say so rather than let the axis imply it.
+    if ("n_tested_in_kb" %in% names(dt) && uniqueN(dt$n_tested_in_kb) > 1L) {
+        head_desc <- paste0(head_desc, ", corrected within each knowledgebase")
+    }
 }
 subtitle <- sprintf(
     "%s; %d at FDR < %g%s%s",
