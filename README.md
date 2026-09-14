@@ -486,7 +486,7 @@ and the sets are browsable at
 
 With `enrichment.make_plots: "yes"` each analysis also gets a dot plot,
 `<assoc>_enrichment_<features|pathways|traits>.jpg`, showing the top
-`enrichment.plot_top_n` results by p-value, plus a fourth plot described in
+`enrichment.plot_top_n` results by FDR, plus a fourth plot described in
 point 4 below. Point size and transparency carry
 how many CpGs or genes drive each result; solid points pass the FDR threshold
 and hollow points do not; colour separates knowledgebases or GO from KEGG when
@@ -498,10 +498,15 @@ Two deliberate choices in how these read:
    solid points tells you directly that nothing was significant -- the subtitle
    says so too. Seeing that the best hit was p = 0.2 is more useful than an
    empty figure.
-2. The x axis is normally -log10(p), but the strongest KYCG enrichments
-   routinely underflow to p = 0 on a full array, which would stack every point
-   on one line. When that happens the axis switches to fold enrichment and both
-   the axis label and the subtitle say so, so the two cases cannot be confused.
+2. The x axis is -log10(FDR), following knowYourCG, whose `KYCG_plotDot` and
+   `KYCG_plotBar` both default to `-log10(FDR)`. A dashed reference line marks
+   `enrichment.threshold`, so the cutoff that decides solid from hollow sits on
+   the axis. A strong enrichment over a large feature can push the FDR below
+   the smallest representable double, so `enrich_features.R` and
+   `enrich_traits.R` also emit exact `neg_log10_p` and `neg_log10_fdr` columns
+   computed on the log scale, and the plots use those. `gometh` returns a
+   linear FDR only, so the pathways plot falls back to a labelled cap, and if
+   an axis does collapse the plot switches to fold enrichment and says so.
 3. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
    collection*, each panel on its own x axis. This is not only cosmetic:
    `enrich_pathways.R` calls `gometh` once per collection and keeps each
@@ -520,7 +525,7 @@ Two deliberate choices in how these read:
    multiple-testing issue -- `enrich_features.R` corrects all features as one
    pooled BH family, and correcting within knowledgebase instead changed the
    significant count by one in testing -- so the pooled ranking stays valid and
-   both views are kept. This plot's x axis is fold enrichment, not -log10(p),
+   both views are kept. This plot's x axis is fold enrichment, not -log10(FDR),
    because a large feature earns a smaller p-value at the same fold enrichment
    as a small one; ranking knowledgebases by p would partly re-sort them by
    feature size.

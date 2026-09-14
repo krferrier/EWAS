@@ -90,5 +90,36 @@ write_empty_result <- function(path, columns, reason) {
 hyper_test <- function(n_overlap, n_query, n_mask, n_univ) {
     log_p <- stats::phyper(n_overlap - 1L, n_mask, n_univ - n_mask, n_query,
                            lower.tail = FALSE, log.p = TRUE)
-    list(p_value = exp(log_p), neg_log10_p = -log_p / log(10))
+    list(log_p = log_p, p_value = exp(log_p), neg_log10_p = -log_p / log(10))
+}
+
+#' Benjamini-Hochberg FDR on the log scale.
+#'
+#' `p.adjust(method = "BH")` cannot be used here: its input is linear p-values,
+#' so any p that has underflowed to 0 gives an FDR of exactly 0, and -log10(0)
+#' is Inf. Since the plots put -log10(FDR) on the x axis (the knowYourCG
+#' convention), the FDR needs the same treatment the p-value already gets.
+#'
+#' BH is order statistics and one multiplication, both of which are exact in
+#' logs: adjusted_(i) = min over j >= i of (n / j) * p_(j), which becomes
+#' log n - log j + log p_(j), followed by a running minimum from the largest
+#' p-value down and a clamp at log(1) = 0.
+#'
+#' Returns a list of `log_fdr`, `fdr` (exponentiated, may underflow to 0) and
+#' `neg_log10_fdr` (exact). Verified against p.adjust() on values that do not
+#' underflow.
+bh_log <- function(log_p) {
+    n <- length(log_p)
+    if (n == 0L) {
+        return(list(log_fdr = numeric(0), fdr = numeric(0),
+                    neg_log10_fdr = numeric(0)))
+    }
+    ord <- order(log_p)
+    scaled <- log(n) - log(seq_len(n)) + log_p[ord]
+    # Running minimum from the largest p-value downwards, then enforce fdr <= 1.
+    stepped <- pmin(rev(cummin(rev(scaled))), 0)
+    log_fdr <- numeric(n)
+    log_fdr[ord] <- stepped
+    list(log_fdr = log_fdr, fdr = exp(log_fdr),
+         neg_log10_fdr = -log_fdr / log(10))
 }

@@ -172,12 +172,18 @@ top[, .signif := !is.na(fdr) & fdr < args$fdr_threshold]
 # computed on the log scale, which is exact; use it when present. gometh
 # returns only a linear p-value, so the pathways table has no such column and
 # still needs the cap below.
+# The axis is -log10(FDR), following knowYourCG, whose KYCG_plotDot and
+# KYCG_plotBar both default to y = "-log10(FDR)". It also makes the figure
+# self-consistent: the threshold that decides solid vs hollow points sits on
+# the axis, marked with a reference line.
 LOGP_CAP <- -log10(.Machine$double.xmin)
-if ("neg_log10_p" %in% names(top)) {
-    top[, .logp := as.numeric(neg_log10_p)]
+if ("neg_log10_fdr" %in% names(top)) {
+    top[, .logp := as.numeric(neg_log10_fdr)]
     n_capped <- 0L
 } else {
-    top[, .logp := -log10(p_value)]
+    # gometh returns a linear FDR only, so the pathways table still needs the
+    # cap: an FDR below the smallest positive double reads as exactly 0.
+    top[, .logp := -log10(fdr)]
     n_capped <- sum(!is.finite(top$.logp) | top$.logp > LOGP_CAP)
     top[, .logp := pmin(fifelse(is.finite(.logp), .logp, LOGP_CAP), LOGP_CAP)]
 }
@@ -215,7 +221,7 @@ if (use_effect) {
     x_lab <- "Fold enrichment (observed / expected)"
 } else {
     top[, .x := .logp]
-    x_lab <- expression(-log[10]~"(P-value)")
+    x_lab <- expression(-log[10]~"(FDR)")
 }
 if (nrow(top) == 0L) {
     write_placeholder(args$output, plot_title,
@@ -238,7 +244,7 @@ if (faceted) {
         "strongest hit from each of %d knowledgebases (%d features tested); x shows effect size, which is comparable across knowledgebases",
         nrow(top), nrow(dt))
 } else {
-    head_desc <- sprintf("top %d of %d tested by p-value", nrow(top), nrow(dt))
+    head_desc <- sprintf("top %d of %d tested by FDR", nrow(top), nrow(dt))
 }
 subtitle <- sprintf(
     "%s; %d at FDR < %g%s%s",
@@ -252,10 +258,21 @@ subtitle <- sprintf(
 
 has_groups <- !all(is.na(top$.group)) && uniqueN(top$.group) > 1L
 
+# Built up front rather than patched onto p$layers[[i]] afterwards: the layer
+# index is not stable (the FDR reference line is also a layer), and indexing
+# into it silently coloured the wrong thing.
+point_layer <- if (has_groups) {
+    geom_point(aes(shape = .signif, colour = .group), stroke = 0.9)
+} else {
+    geom_point(aes(shape = .signif), colour = spec$colour, stroke = 0.9)
+}
+
 p <- ggplot(top, aes(x = .x, y = .wrapped, size = .count, alpha = .count)) +
-    geom_point(aes(shape = .signif,
-                   colour = if (has_groups) .group else NULL),
-               stroke = 0.9) +
+    # The threshold that decides solid vs hollow, on the axis itself.
+    geom_vline(xintercept = if (use_effect) NA_real_
+                            else -log10(args$fdr_threshold),
+               linetype = "dashed", colour = "grey55", linewidth = 0.3) +
+    point_layer +
     scale_shape_manual(
         values = c(`TRUE` = 19, `FALSE` = 1),
         breaks = c(TRUE, FALSE),
@@ -291,9 +308,6 @@ if (has_groups) {
     } else {
         scale_colour_viridis_d(option = "turbo", end = 0.9)
     }
-} else {
-    p <- p + aes(colour = NULL)
-    p$layers[[1]]$aes_params$colour <- spec$colour
 }
 
 if (faceted && uniqueN(top$.facet) > 1L) {

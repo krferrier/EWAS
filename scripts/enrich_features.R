@@ -33,7 +33,7 @@ args <- parser$parse_args()
 
 OUT_COLS <- c("knowledgebase", "feature", "n_universe", "n_significant",
               "n_in_feature", "n_overlap", "expected", "fold_enrichment",
-              "neg_log10_p",
+              "neg_log10_p", "neg_log10_fdr",
               "log2_odds_ratio", "p_value", "fdr")
 
 sets <- read_cpg_sets(args$input_file, args$stratified,
@@ -119,9 +119,12 @@ all[, log2_odds_ratio := as.numeric(Log2OddsRatio)]
 .ht <- hyper_test(n_overlap = all$n_overlap, n_query = all$n_significant,
                   n_mask = all$n_in_feature, n_univ = all$n_universe)
 all[, p_value := .ht$p_value]
-# Exact magnitude even where p_value has underflowed to 0; see hyper_test().
+# Exact magnitudes even where p_value/fdr have underflowed to 0; the plots put
+# -log10(FDR) on the x axis. See hyper_test() and bh_log().
 all[, neg_log10_p := .ht$neg_log10_p]
-all[, fdr := p.adjust(p_value, method = "BH")]
+.bh <- bh_log(.ht$log_p)
+all[, fdr := .bh$fdr]
+all[, neg_log10_fdr := .bh$neg_log10_fdr]
 
 setorder(all, p_value, -fold_enrichment)
 fwrite(all[, ..OUT_COLS], args$output, sep = "\t")
