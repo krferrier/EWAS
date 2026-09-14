@@ -62,11 +62,13 @@ rule fetch_kycg_features:
     output:
         kycg = directory(CW.kycg_dir),
         ordering = protected(CW.probe_ordering),
-        manifest = CW.kycg_manifest
+        manifest = CW.kycg_manifest,
+        registry = CW.kycg_registry
     params:
         api_url = CW.kycg_api_url,
         raw_base = CW.kycg_raw_base,
         ordering_url = CW.probe_ordering_url,
+        registry_url = CW.kycg_registry_url,
         platform = CW.array_platform,
         release = CW.zhou_release,
         prefixes = " ".join(CW.KYCG_FEATURE_SETS)
@@ -78,6 +80,12 @@ rule fetch_kycg_features:
 
         wget -O {output.ordering}.tmp {params.ordering_url}
         mv {output.ordering}.tmp {output.ordering}
+
+        # What each KYCG set IS -- title, biology, upstream source, citation.
+        # Cached so a results directory carries the definitions of the features
+        # it reports; a label such as ABCompartment's "B4" is not self-evident.
+        wget -O {output.registry}.tmp {params.registry_url}
+        mv {output.registry}.tmp {output.registry}
 
         # One unauthenticated call to the GitHub contents API resolves the
         # date-stamped filenames for this platform and release.

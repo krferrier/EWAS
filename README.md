@@ -331,6 +331,9 @@ KYCG columns appear only when the configured `array_platform` publishes those
 sets; a missing set is skipped rather than erroring. An empty value means the
 probe is not annotated for that feature, not that the feature is absent.
 
+The seven KYCG columns are described in
+[What the KYCG knowledgebases are](#kycg-knowledgebases).
+
 SNP annotation is deliberately not included; see
 [Notes on the annotation sources](#notes-on-the-annotation-sources).
 
@@ -365,6 +368,9 @@ The significant set against the KYCG knowledgebases from the same pinned v8.1
 release the annotation uses: chromatin states, 82 histone marks, 1188
 transcription-factor binding sets, repeats, PMDs, A/B compartments, metagene
 position and CpG islands.
+
+For what each knowledgebase is and what its feature labels mean, see
+[What the KYCG knowledgebases are](#kycg-knowledgebases).
 
 Implemented with `yame`: the query is packed as a format-6 record carrying two
 bits per probe, one for the universe and one for the set, so the restricted
@@ -414,6 +420,67 @@ will not match the Atlas website, which reports across all arrays at once.
 The Atlas is keyed on bare `cg` identifiers, so an EPICv2 or MSA run that keeps
 the design suffix will not match; the rule reports this rather than returning
 an empty result silently.
+
+#### What the KYCG knowledgebases are
+
+<a name="kycg-knowledgebases"></a>
+
+A set name says what a knowledgebase is called, not what it means, and the
+feature labels inside one are often only meaningful if you know the upstream
+annotation. `ABCompartment` returning `B4`, for instance, means the CpG falls
+in Hi-C subcompartment B4 as defined by Rao et al. 2014 — one of six
+subcompartment labels, not a generic bin number.
+
+**The authoritative definitions are Zhou's own knowledgebase registry**, which
+`fetch_kycg_features` caches alongside the feature sets as
+`<cache>/zhou/<platform>/<release>/KYCG/knowledgebases.tsv`. One row per set,
+with columns `set`, `title`, `biology`, `source`, `citation` and `processing` —
+the last describing what was done to the upstream data on the way in. Look a
+set up there first:
+
+```bash
+awk -F'\t' '$1=="ABCompartment"' resources/annotation/zhou/EPIC/v8.1/KYCG/knowledgebases.tsv
+```
+
+The sets this workflow tests, with the feature vocabulary each one actually
+emits (read from the `.cm` files themselves, so these are the values you will
+see in the enrichment tables):
+
+| Knowledgebase | What it is | A feature value looks like | Upstream source |
+|---|---|---|---|
+| `ChromHMM` | Chromatin states | one of 18 states: `TssA`, `TssFlnk`/`TssFlnkU`/`TssFlnkD`, `TssBiv`, `Tx`, `TxWk`, `EnhA1`/`EnhA2`, `EnhG1`/`EnhG2`, `EnhWk`, `EnhBiv`, `ReprPC`, `ReprPCWk`, `Het`, `ZNF/Rpts`, `Quies` | ENCODE chromatin-state segmentations; Ernst & Kellis 2012, Nat Methods, doi:10.1038/nmeth.1906 |
+| `REMCChromHMM` | Chromatin states, Roadmap | one of 15 numbered states, `1_TssA` through `15_Quies` | NIH Roadmap Epigenomics, coreMarks hg38lift; Roadmap Epigenomics Consortium 2015, Nature, doi:10.1038/nature14248 |
+| `HM` | Histone modifications | a histone mark or variant, e.g. `H3K4me3`, `H3K27ac`, `H3K9me3`, `CENPA` (82 sets) | Cistrome Data Browser histone ChIP-seq; Zheng et al. 2019, Nucleic Acids Res, doi:10.1093/nar/gky1094 |
+| `TFBSrm` | Transcription factor binding sites, ReMap | a transcription factor name, e.g. `TFDP2`, `SP3`, `TAF3` (1,188 factors) | ReMap 2022, non-redundant MACS2 peaks; Hammal et al. 2022, Nucleic Acids Res, doi:10.1093/nar/gkab996 |
+| `CTCFbind` | CTCF binding sites | the single category `CTCFbind` | CTCF sites from Wang et al. 2012; Wang et al. 2012, Genome Res, doi:10.1101/gr.136101.111 |
+| `CGI` | CpG islands | `Island`, `Shore`, `Shelf` or `OpenSea` | UCSC Genome Browser cpgIslandExt track; Gardiner-Garden & Frommer 1987, J Mol Biol, doi:10.1016/0022-2836(87)90689-9 |
+| `MetagenePC` | Metagene position | a position bin: gene-body percentiles `0;0-10%` .. `9;90-100%`, plus TSS-relative distance bins such as `-2;-150` and `11;150` (30) | GENCODE v36 (hg38) / vM25 (mm10), protein-coding transcripts >1 kb; Frankish et al. 2019, Nucleic Acids Res, doi:10.1093/nar/gky955 |
+| `ABCompartment` | A/B compartments | a Hi-C subcompartment label: `A1`, `A2`, `B1`, `B2`, `B3`, `B4` | GM12878 subcompartments, GSE63525; Rao et al. 2014, Cell, doi:10.1016/j.cell.2014.11.021 |
+| `PMD` | Partially methylated domains | `commonPMD` or `commonHMD` | Zhou lab PMD coordinates; Zhou et al. 2018, Nat Genet, doi:10.1038/s41588-018-0073-4 |
+| `rmsk1` | Repeats, class | a repeat class, e.g. `SINE`, `LINE`, `LTR`, `DNA`, `Satellite`, `Simple_repeat` (20) | UCSC RepeatMasker track; Smit, Hubley & Green, RepeatMasker (repeatmasker.org) |
+| `rmsk2` | Repeats, family | a repeat family, e.g. `Alu`, `L1`, `MIR`, `ERVK`, `TcMar-Tigger` (58) | UCSC RepeatMasker track; Smit, Hubley & Green, RepeatMasker (repeatmasker.org) |
+| `ImprintingDMR` | Imprinted DMRs | the single category `ImprintingDMR` | Court et al. 2014 supplementary table 1; Court et al. 2014, Genome Res, doi:10.1101/gr.164913.113 (PMID 24402520) |
+| `Tetranuc2` | Tetranucleotide context | `WCGW`, `SCGW` or `SCGS` | Derived from the reference genome; Zhou et al. 2018, Nat Genet, doi:10.1038/s41588-018-0073-4 |
+| `nFlankCG` | Flanking CpG density | an integer 1-35, the number of CpGs flanking the probe | Derived from the CpG reference and genome; -- |
+| `Blacklist` | Blacklisted regions | the single category `Blacklist` | ENCODE blacklist v2 (hg38 ENCFF356LFX, mm10 ENCFF547MET); Amemiya et al. 2019, Sci Rep, doi:10.1038/s41598-019-45839-z |
+| `ProbeType` | Probe type | `cg`, `ch`, `ct` or `rs` | Infinium platform manifest; -- |
+| `InfiniumChemistry` | Infinium chemistry | `I.A`, `I.C`, `I.R`, `I.T` or `II` | Infinium platform manifest; -- |
+
+The first four plus `CGI` are the ones usually worth reading first: they answer
+what kind of regulatory region a hit sits in. `ProbeType`,
+`InfiniumChemistry`, `Blacklist` and `nFlankCG` are technical rather than
+biological — enrichment there is a QC signal, suggesting the hits track array
+design or mappability rather than biology, and is worth checking for that
+reason.
+
+Seven of these sets are also joined onto every CpG as columns in the annotated
+results; see [Annotated Results Columns](#annotated-results-columns). The rest
+are tested for enrichment only.
+
+Further reading: the KnowYourCG framework paper is
+[Goldberg et al. 2025, *Science Advances*](https://doi.org/10.1126/sciadv.adw3027),
+and the sets are browsable at
+[zwdzwd.github.io/InfiniumAnnotation](https://zwdzwd.github.io/InfiniumAnnotation).
 
 #### Enrichment plots
 

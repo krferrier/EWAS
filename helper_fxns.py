@@ -461,6 +461,26 @@ class ConfigWizard(object):
         return self.ewas_zhou_dir.joinpath("kycg_manifest.tsv")
 
     @property
+    def kycg_registry(self) -> Path:
+        """Zhou's knowledgebase registry: what each KYCG set IS.
+
+        One row per set with title, biology, upstream source, citation and
+        processing notes. Cached beside the sets so a results directory carries
+        the definitions of the features it reports -- a feature label such as
+        ABCompartment's "B4" is not self-explanatory.
+        """
+        return self.kycg_dir.joinpath("knowledgebases.tsv")
+
+    @property
+    def kycg_registry_url(self) -> str:
+        # Ships with the kycg CLI rather than the annotation release, so this
+        # one is not pinned by zhou_release.
+        return (
+            "https://raw.githubusercontent.com/zhou-lab/kycg/main/"
+            "data/knowledgebases.tsv"
+        )
+
+    @property
     def probe_ordering(self) -> Path:
         """Row order the KYCG .cm files are aligned to."""
         return self.ewas_zhou_dir.joinpath(f"{self.array_platform}.ordering.tsv.gz")
