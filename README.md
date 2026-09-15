@@ -534,14 +534,16 @@ methylation is part of your hypothesis, not whether the test is valid.
 ##### The FDR is computed within each knowledgebase
 
 Each knowledgebase is a separate enrichment analysis, so pooling them into one
-BH family makes the FDR for a chromatin state depend on how many TF motifs
-happened to be tested alongside it. `enrichment.fdr_by_knowledgebase` therefore
-defaults to `yes`, which is also what `knowYourCG::testEnrichment` does --
-its `mtc_by_group` defaults to `TRUE` and splits on the knowledgebase group.
+BH family would make the FDR for a chromatin state depend on how many TF motifs
+happened to be tested alongside it. `enrich_features.R` therefore always
+corrects within each knowledgebase; there is no setting to pool, because
+pooling is not a defensible choice here. This is also what
+`knowYourCG::testEnrichment` does -- its `mtc_by_group` defaults to `TRUE` and
+splits on the knowledgebase group.
 
 It matters most at the threshold. For a feature ranked first in its set:
 
-| Nominal p | Set (family size) | FDR within | FDR pooled (n = 1,324) |
+| Nominal p | Set (family size) | FDR within | FDR had it been pooled (n = 1,324) |
 |---|---|---|---|
 | 0.001 | `ChromHMM` (18) | 0.018 | 1.0 |
 | 0.001 | `PMD` (2) | 0.002 | 1.0 |
@@ -552,13 +554,12 @@ So a chromatin state at p = 0.001 is significant within its own family and
 invisible pooled, while a motif is barely affected -- pooling quietly transfers
 power from the small sets to the large one.
 
-The trade is that q-values from families of very different sizes are no longer
+The consequence is that q-values from families of very different sizes are not
 a single ranking: a motif needs stronger evidence than a chromatin state to
 reach the same FDR. The features table records `n_tested_in_kb` so family size
 is visible, and the figure legend below states that the correction was per
 knowledgebase. Ordering that plot by FDR anyway follows the reference, whose
 `KYCG_plotDot` defaults to `order_by = "FDR"` alongside `mtc_by_group = TRUE`.
-Set `fdr_by_knowledgebase: "no"` for one pooled family instead.
 
 ##### KYCG tests CpGs; GO and KEGG test genes
 

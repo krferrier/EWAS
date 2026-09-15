@@ -225,13 +225,6 @@ properties:
               type: string
               minLength: 1
 
-      fdr_by_knowledgebase:
-        type: string
-        enum: ["yes", "no"]
-        description: >
-          Adjust enrichment p-values within each knowledgebase ("yes") rather
-          than as one pooled BH family across all of them ("no").
-
       ewas_atlas_url:
         type: string
         pattern: "^https://.+"

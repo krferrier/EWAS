@@ -28,11 +28,6 @@ parser$add_argument('--stratified', required = TRUE)
 parser$add_argument('--significance', default = "fdr")
 parser$add_argument('--threshold', type = "double", default = 0.05)
 parser$add_argument('--min-set-size', type = "integer", default = 20L)
-parser$add_argument('--fdr-by-knowledgebase', default = "yes",
-                    help = paste("Adjust p-values within each knowledgebase",
-                                 "(yes, the default and what",
-                                 "knowYourCG::testEnrichment does) rather than",
-                                 "pooled across all of them (no)."))
 parser$add_argument('--qc-sets', default = "",
                     help = paste("Comma-separated subset of --sets that are",
                                  "design/QC knowledgebases rather than",
@@ -174,28 +169,22 @@ all[, p_value := .ht$p_value]
 # -log10(FDR) on the x axis. See hyper_test() and bh_log().
 all[, neg_log10_p := .ht$neg_log10_p]
 # Each knowledgebase is a separate enrichment analysis, so the FDR is computed
-# within one by default rather than pooled across all of them: pooling makes
-# the FDR for a chromatin state depend on how many TF motifs were tested
-# alongside it, and lets one large set (TFBSrm is 1188 motifs) spend the power
-# the others need. knowYourCG::testEnrichment does the same -- its
-# mtc_by_group defaults to TRUE and splits on the knowledgebase group.
+# within one, never pooled across all of them. Pooling would make the FDR for
+# a chromatin state depend on how many TF motifs happened to be tested
+# alongside it, and would let one large set (TFBSrm is 1188 motifs) spend the
+# power the others need. knowYourCG::testEnrichment does the same -- its
+# mtc_by_group defaults to TRUE and splits on the knowledgebase group. There
+# is deliberately no option to pool: it is not a defensible choice here.
 #
-# The trade is that q-values from families of very different sizes are no
-# longer on one ranking: a motif needs stronger evidence than a chromatin
-# state to reach the same FDR. n_tested_in_kb records each family's size so
-# that is visible in the table.
-if (identical(tolower(trimws(args$fdr_by_knowledgebase)), "yes")) {
-    all[, n_tested_in_kb := .N, by = knowledgebase]
-    all[, c("fdr", "neg_log10_fdr") := {
-            b <- bh_log(log_p)
-            list(b$fdr, b$neg_log10_fdr)
-        }, by = knowledgebase]
-} else {
-    all[, n_tested_in_kb := .N]
-    .bh <- bh_log(all$log_p)
-    all[, fdr := .bh$fdr]
-    all[, neg_log10_fdr := .bh$neg_log10_fdr]
-}
+# The consequence is that q-values from families of very different sizes are
+# not one ranking: a motif needs stronger evidence than a chromatin state to
+# reach the same FDR. n_tested_in_kb records each family's size so that is
+# visible in the table.
+all[, n_tested_in_kb := .N, by = knowledgebase]
+all[, c("fdr", "neg_log10_fdr") := {
+        b <- bh_log(log_p)
+        list(b$fdr, b$neg_log10_fdr)
+    }, by = knowledgebase]
 
 setorder(all, p_value, -fold_enrichment)
 fwrite(all[, ..OUT_COLS], args$output, sep = "\t")

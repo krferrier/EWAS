@@ -222,18 +222,6 @@ enrichment:
     - Blacklist         # ENCODE v2 artefact regions
     - nFlankCG          # local CpG density
 
-  # Adjust p-values within each knowledgebase rather than pooled across    [CHECK]
-  # all of them. Each knowledgebase is a separate enrichment analysis, so
-  # pooling makes the FDR for a chromatin state depend on how many TF motifs
-  # were tested alongside it, and lets one large set spend the power the
-  # others need. This is also what knowYourCG::testEnrichment does, whose
-  # mtc_by_group defaults to TRUE. Set to "no" for one pooled BH family.
-  #
-  # The trade: q-values from families of very different sizes are no longer
-  # one ranking -- a motif needs stronger evidence than a chromatin state to
-  # reach the same FDR. n_tested_in_kb in the results gives each family size.
-  fdr_by_knowledgebase: "yes"
-
   # Summary dot plots in <out>/enrichment/.                              [CHECK]
   # Four plots. The two KYCG ones (biological and QC) follow knowYourCG's
   # KYCG_plotEnrichAll: one block per tested knowledgebase along the x axis,

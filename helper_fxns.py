@@ -33,7 +33,6 @@ class ConfigWizard(object):
         "enrichment", "enrich_significance", "enrich_threshold",
         "enrich_min_set_size", "ewas_atlas_url", "_enrich_kbs",
         "_enrich_qc_kbs",
-        "enrich_fdr_by_kb",
         "enrichment_plots", "enrich_plot_top_n",
         "dmr_make_zoom", "dmr_make_combined", "dmr_plot_min_probes",
         "dmr_plot_max_y", "dmr_zoom_padding", "dmr_cluster_gap",
@@ -159,13 +158,6 @@ class ConfigWizard(object):
         # Which KYCG knowledgebases to test. A list of set names, or "all".
         self._enrich_kbs = enrich_cfg.get("knowledgebases")
         self._enrich_qc_kbs = enrich_cfg.get("qc_knowledgebases")
-        # Each knowledgebase is a separate enrichment analysis, so by default
-        # the FDR is computed within one rather than pooled across all of them
-        # -- otherwise the FDR for a chromatin state depends on how many TF
-        # motifs happened to be tested alongside it. This matches
-        # knowYourCG::testEnrichment, whose mtc_by_group defaults to TRUE.
-        self.enrich_fdr_by_kb: str = str(
-            enrich_cfg.get("fdr_by_knowledgebase", "yes")).lower()
         self.ewas_atlas_url: str = str(
             enrich_cfg.get(
                 "ewas_atlas_url",
@@ -482,7 +474,7 @@ class ConfigWizard(object):
     #
     # Large and overlapping sets are all kept because the FDR is computed
     # within each knowledgebase, not across all of them, so no set spends
-    # anything the others need. See enrich_fdr_by_kb.
+    # anything the others need.
     #
     # On EPIC these 13 plus the four QC sets below are everything the platform
     # publishes. Other platforms publish more -- MSA has 32 sets, including
