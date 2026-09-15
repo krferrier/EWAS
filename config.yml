@@ -240,6 +240,8 @@ enrichment:
   # -log10(FDR) on y, point size the log2 odds ratio. Blocks rather than a
   # single ranking because the FDR is computed within each knowledgebase, so
   # q-values from a 2-feature and a 1188-feature set are not one ranking.
+  # The KYCG plots draw every enriched feature, with solid points passing the
+  # FDR threshold and hollow ones not, so `plot_top_n` does not apply to them.
   # GO/KEGG and traits stay dot plots of the top `plot_top_n`, with point
   # size and
   # transparency carrying how many CpGs or genes drive each result, and solid

@@ -181,23 +181,18 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
                               tail(as.character(.kb), -1), 1, 0))]
     dt[, .xpos := cumsum(.inc + .step)]
 
-    # Enriched features only -- the test is one-sided (phyper lower.tail =
-    # FALSE), so a fold below 1 carries no evidence here -- and only the
-    # strongest args$top_n of them per knowledgebase. Drawing every feature
-    # makes this figure unreadable as soon as one set is large: a real run can
-    # leave 800+ significant TF motifs, which arrive as a solid block of
-    # overplotted points that hides the smaller sets entirely. The full ranking
-    # is in the results table.
+    # Every enriched feature is drawn, not a top N per knowledgebase: the
+    # solid/hollow encoding is what separates the significant from the rest, so
+    # thinning the points would only hide the distribution the reader is being
+    # asked to judge -- how far into a knowledgebase the signal goes, and where
+    # it stops. args$top_n therefore governs the dot-plot kinds only.
     #
-    # Non-significant features are kept and drawn hollow, as in the dot plots.
-    # Showing only the significant ones made the solid/hollow distinction
-    # vacuous -- every point would be solid -- and left no way to tell a
-    # knowledgebase whose best result just missed the threshold from one with
-    # nothing to say, which matters most on the QC figure, where the whole
-    # question is whether anything reached significance.
-    enr <- dt[fold_enrichment > 1]
-    n_sig <- enr[fdr < args$fdr_threshold, .N]
-    pts <- enr[order(-neg_log10_fdr)][, head(.SD, args$top_n), by = .kb]
+    # Features with fold enrichment <= 1 are left out. The hypergeometric here
+    # is one-sided (phyper lower.tail = FALSE), so depletion is not tested and
+    # such a feature carries no evidence either way; drawing it would add a
+    # point that cannot be interpreted.
+    pts <- dt[fold_enrichment > 1]
+    n_sig <- pts[fdr < args$fdr_threshold, .N]
     pts[, .y := neg_log10_fdr]
     # A factor carrying BOTH levels, so the shape guide always explains solid
     # against hollow even when every drawn point falls on one side.
@@ -277,7 +272,7 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
             size = 0, alpha = 0, inherit.aes = FALSE)
         p <- p +
             geom_point(aes(size = log2_odds_ratio, colour = .kb,
-                           shape = .signif), alpha = 0.75) +
+                           shape = .signif), alpha = 0.65) +
             key_layer +
             # Repelled upward off its own block's points. point.padding has to
             # cover the largest points (6 mm) because ggrepel knows nothing of
@@ -337,11 +332,9 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     ggsave(path, plot = p, width = 9.5, height = 6.6, dpi = 300, bg = "white",
            limitsize = FALSE)
     message(sprintf(paste("Wrote %s (%d blocks in %d groups; %d enriched",
-                          "features, %d of them at FDR < %g; %d drawn at top",
-                          "%d per knowledgebase)"),
+                          "features drawn, %d of them at FDR < %g)"),
                     basename(path), nrow(blocks), uniqueN(blocks$grp),
-                    nrow(enr), n_sig, args$fdr_threshold, nrow(pts),
-                    args$top_n))
+                    nrow(pts), n_sig, args$fdr_threshold))
 }
 
 plot_title <- sprintf("%s: %s", args$assoc, spec$title)

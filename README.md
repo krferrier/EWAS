@@ -676,7 +676,8 @@ empty QC plot is the good outcome, and it still shows its blocks so you can
 see the checks ran.
 
 **The pathway and trait plots** stay dot plots of the top
-`enrichment.plot_top_n` by FDR. Point size and transparency carry how many
+`enrichment.plot_top_n` by FDR (that setting does not affect the feature
+plots, which draw every enriched feature). Point size and transparency carry how many
 CpGs or genes drive each result; solid points pass the FDR threshold and
 hollow ones do not.
 
@@ -701,13 +702,15 @@ Four deliberate choices in how all of these read:
    linear FDR only, so the pathways plot falls back to a labelled cap, and if
    an axis does collapse it switches to fold enrichment, which the axis title
    states.
-3. The feature plots draw only the strongest `enrichment.plot_top_n` enriched
-   features per knowledgebase, not every one. A real run can leave several
-   hundred significant TF motifs, which arrive as a solid block of overplotted
-   points that hides every smaller knowledgebase; the full ranking is in the
-   table. The y axis is not capped, so a very strong result stretches it and
-   the weaker blocks sit low -- that is the honest picture, and with at most
-   `plot_top_n` points per block they stay legible.
+3. The feature plots draw *every* enriched feature, not a top N per
+   knowledgebase, because solid versus hollow is what separates the
+   significant from the rest: thinning would hide the distribution the figure
+   exists to show -- how far into a knowledgebase the signal goes and where it
+   stops. `enrichment.plot_top_n` therefore applies to the dot-plot kinds
+   only. A knowledgebase with many features becomes a dense column, which is
+   itself informative; the per-feature numbers are in the table. The y axis is
+   not capped either, so a very strong result stretches it and the weaker
+   blocks sit low -- that is the honest picture of their relative evidence.
 4. Every figure carries a title and nothing else -- no subtitle, no caption.
    Counts and interpretation belong in the legend, below, not printed into the
    image. The rule logs the counts that a legend needs (how many features were
@@ -737,15 +740,14 @@ Knowledgebases carrying related information are placed next to each other --
 the two chromatin-state models beside the histone marks they are called from,
 transcription factor and CTCF binding together, the two repeat resolutions
 together -- and the alternating grey bands mark those groups. Solid points pass
-the FDR threshold and hollow points do not. Only features that are enriched
-(fold enrichment > 1) are shown, because the hypergeometric test is one-sided,
-and only the strongest `enrichment.plot_top_n` of them per knowledgebase; a
-knowledgebase with no enriched feature at all still appears on the axis with
-nothing above it. Non-significant features are kept rather than dropped so
-that a knowledgebase whose best result just missed the threshold can be told
-from one with nothing to say. Only significant features are labelled -- naming
-a near-miss would read as a finding -- for up to 14 knowledgebases ordered by
-best FDR. **FDR is adjusted
+the FDR threshold and hollow points do not, so the significant features of
+each knowledgebase can be read off directly, which a single threshold line
+could not do given that each knowledgebase is corrected separately. Every
+enriched feature is shown; features with fold enrichment <= 1 are omitted
+because the hypergeometric test is one-sided and they carry no evidence either
+way. A knowledgebase with no enriched feature at all appears on the axis with
+nothing above it. Only significant features are labelled -- naming a near-miss
+would read as a finding -- for up to 14 knowledgebases ordered by best FDR. **FDR is adjusted
 within each knowledgebase, not across them**, so heights are comparable within
 a knowledgebase but not between them: a motif from a 1,188-feature set needs
 stronger evidence than a chromatin state from an 18-feature set to reach the
