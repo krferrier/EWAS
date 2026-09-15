@@ -122,8 +122,8 @@ paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
 |   |-- <assoc>_enrichment_pathways.tsv          GO and KEGG terms
 |   |-- <assoc>_enrichment_traits.tsv            EWAS Atlas trait associations
 |   |-- <assoc>_enrichment_features.jpg          top hits per analysis;
-|   |-- <assoc>_enrichment_features_by_knowledgebase.jpg   strongest feature per
-|   |                                              knowledgebase;
+|   |-- <assoc>_enrichment_features_qc.jpg        the design/QC sets, plotted
+|   |                                              apart from the biology
 |   |-- <assoc>_enrichment_pathways.jpg            all four only when
 |   `-- <assoc>_enrichment_traits.jpg              enrichment.make_plots: "yes"
 |
@@ -377,9 +377,17 @@ bits per probe, one for the universe and one for the set, so the restricted
 background is applied inside the overlap counting. `yame summary` then reports
 the 2x2 per feature and the hypergeometric p-value and FDR are computed in R.
 
-Columns: `knowledgebase`, `feature`, `n_universe`, `n_significant`,
-`n_in_feature`, `n_overlap`, `expected`, `fold_enrichment`,
-`log2_odds_ratio`, `p_value`, `fdr`.
+Columns: `knowledgebase`, `role`, `feature`, `n_universe`, `n_significant`,
+`n_in_feature`, `n_overlap`, `expected`, `fold_enrichment`, `neg_log10_p`,
+`neg_log10_fdr`, `n_tested_in_kb`, `log2_odds_ratio`, `p_value`, `fdr`.
+
+`role` is `biological` or `qc`, which is how the two feature plots split this
+one table. `n_tested_in_kb` is the size of the testing family the row's FDR was
+computed in. `neg_log10_p` and `neg_log10_fdr` are exact where `p_value` and
+`fdr` have underflowed to zero.
+
+The universe here is **CpGs**, not genes -- see
+[KYCG tests CpGs; GO and KEGG test genes](#kycg-tests-cpgs-go-and-kegg-test-genes).
 
 Reading it: transcription-factor sets are heavily correlated with one another
 and with active promoters, so a promoter-shifted result will light up hundreds
@@ -442,46 +450,55 @@ set up there first:
 awk -F'\t' '$1=="ABCompartment"' resources/annotation/zhou/EPIC/v8.1/KYCG/knowledgebases.tsv
 ```
 
-##### Which sets are tested, and why only a few
+##### Which sets are tested
 
-Zhou publishes far more than is worth testing: 17 sets for EPIC, 32 for MSA.
-`enrichment.knowledgebases` picks the ones tested, defaulting to six:
+Zhou publishes 17 sets for EPIC and 32 for MSA. This workflow tests two
+named groups, both written to the same table and told apart by its `role`
+column, but plotted separately:
 
-| Tested by default | Why |
+`enrichment.knowledgebases` -- the biological sets (13 by default):
+
+| Set | What a hit means |
 |---|---|
-| `ChromHMM` | chromatin state, the most directly interpretable annotation here |
-| `PMD` | partially methylated domains |
-| `ABCompartment` | Hi-C A/B compartments |
-| `rmsk1`, `rmsk2` | repeat classes and families |
-| `TFBSrm` | transcription factor binding, 1,188 motifs |
+| `ChromHMM`, `REMCChromHMM` | hits fall in a chromatin state (ENCODE and Roadmap models) |
+| `HM` | hits fall under a histone mark or variant |
+| `TFBSrm` | hits fall in a transcription factor's binding sites |
+| `CTCFbind` | hits fall at CTCF sites, whose binding is methylation-sensitive |
+| `CGI` | hits fall in islands, shores, shelves or open sea |
+| `MetagenePC` | hits fall at a particular position relative to genes |
+| `ABCompartment` | hits fall in a Hi-C A/B subcompartment |
+| `PMD` | hits fall in partially methylated domains |
+| `rmsk1`, `rmsk2` | hits fall in a repeat class or family |
+| `Tetranuc2` | hits share a WCGW/SCGS sequence context |
 | `ImprintingDMR` | positive control -- a hit means real allele-specific biology |
-| `CTCFbind` | methylation-sensitive CTCF binding; one test |
 
-The rest are left out for one of four reasons, and any of them can be added
-back by name:
+`enrichment.qc_knowledgebases` -- the design and QC sets (4 by default):
+`ProbeType`, `InfiniumChemistry`, `Blacklist` and `nFlankCG`. These are not
+biology. Zhou's registry frames the first three as post-hoc *controls*: probe
+type is the first thing to rule out when an enrichment looks surprising, CpG
+density is the covariate to check before believing a subtler result, and the
+ENCODE blacklist is a check that a result is not an artefact. They are tested
+and reported, but kept out of the biological figure, because enrichment in one
+of them is a warning about the other results rather than a result itself.
 
-1. **Technical, not biological.** `ProbeType`, `InfiniumChemistry`,
-   `Blacklist` and `nFlankCG` describe array design, artefact-prone regions
-   and local CpG density. Zhou's registry frames the first three as post-hoc
-   *controls* rather than pre-processing aids -- probe type is the first thing
-   to rule out when an enrichment looks surprising, and CpG density is the
-   covariate to check before believing a subtler result. They are omitted here
-   because they are not biology, not because the check is worthless:
-   `ENCODE_blacklist` and `CTCF_binding` are still reported per CpG as
-   annotation columns, so a hit list can be inspected for artefacts directly.
-2. **Already in the results.** `CGI` duplicates the `CGIposition` column this
-   workflow derives from UCSC islands, and `MetagenePC` largely restates
-   `distToTSS`.
-3. **Redundant with a tested set.** `REMCChromHMM` is the same concept as
-   `ChromHMM` from a different reference; `HM` is the histone data ChromHMM
-   states are *called from*, so the two are nested; `rmsk2` is `rmsk1` at
-   family rather than class resolution; `Tetranuc2` is sequence composition
-   and overlaps `nFlankCG`.
+On EPIC those 17 happen to be everything the platform publishes. Other
+platforms publish more -- MSA has 32, including tissue signatures, CoRSIVs,
+evolutionary conservation and G-quadruplex peaks -- and any published set can
+be added by name. Two places to look:
 
-`TFBSrm` and `rmsk2` are in that list *because* the FDR is computed within each
-knowledgebase (below). Pooled, `TFBSrm`'s 1,188 motifs would be 84% of every
-feature tested on EPIC and every other set would pay for them.
+* `data/kycg_set_coverage.tsv` in this repository: all 32 sets across the six
+  array platforms, with which platforms publish each, its role, upstream
+  source and citation.
+* the cached registry, `<cache>/zhou/<platform>/<release>/KYCG/knowledgebases.tsv`,
+  which is Zhou's own provenance for every set -- see above.
 
+Several of the defaults overlap by construction: `REMCChromHMM` restates
+`ChromHMM` from another reference, `HM` is the histone data ChromHMM states are
+called from, `rmsk2` is `rmsk1` at finer resolution, `Tetranuc2` shares its
+context partition with `nFlankCG`, and `CGI` covers what the `CGIposition`
+column already carries. That is a reason to read them as corroborating each
+other rather than as independent evidence -- not a reason to drop them, since
+each knowledgebase is corrected within itself and so costs the others nothing.
 ##### Is enrichment testing even the right question for these?
 
 Partly. The hypergeometric test is well posed for *any* categorical
@@ -543,7 +560,33 @@ knowledgebase. Ordering that plot by FDR anyway follows the reference, whose
 `KYCG_plotDot` defaults to `order_by = "FDR"` alongside `mtc_by_group = TRUE`.
 Set `fdr_by_knowledgebase: "no"` for one pooled family instead.
 
-One caveat that applies to all of these and not to the pathway results:
+##### KYCG tests CpGs; GO and KEGG test genes
+
+<a name="kycg-tests-cpgs-go-and-kegg-test-genes"></a>
+
+These are not the same kind of test, and the difference decides what a result
+means. The KYCG knowledgebases partition **CpGs**: the universe is the probes
+actually tested, each feature is a set of probes, and a hit says *your
+significant CpGs fall in this annotation more often than the CpGs you tested*.
+GO and KEGG partition **genes**: `enrich_pathways.R` maps significant CpGs to
+genes first, and a hit says *the genes your CpGs map to are over-represented in
+this term*.
+
+Three consequences worth keeping in mind:
+
+* A CpG-level result needs no gene to exist. An enrichment in PMDs, repeats or
+  A/B compartments is a statement about where in the genome the signal sits,
+  which intergenic hits contribute to exactly as much as promoter hits.
+* A gene-level result inherits the CpG-to-gene mapping. Genes covered by many
+  probes get more chances to be hit, which is why `gometh` corrects for the
+  number of probes per gene; a plain gene-set test on array data does not and
+  is biased toward large, probe-dense genes.
+* The two can disagree without either being wrong. Hits concentrated in one
+  chromatin state but scattered across unrelated genes give a strong KYCG
+  result and nothing in GO, and that is an interpretable outcome rather than a
+  contradiction.
+
+One caveat that applies to the KYCG tests and not to the pathway results:
 **nothing here is adjusted for anything.** `gometh` corrects for the number of
 probes per gene; the KYCG hypergeometric assumes probes are exchangeable. These
 annotations are strongly inter-correlated and all correlate with CpG density,
@@ -594,60 +637,76 @@ and the sets are browsable at
 
 #### Enrichment plots
 
-With `enrichment.make_plots: "yes"` each analysis also gets a dot plot,
-`<assoc>_enrichment_<features|pathways|traits>.jpg`, showing the top
-`enrichment.plot_top_n` results by FDR, plus a fourth plot described in
-point 4 below. Point size and transparency carry
-how many CpGs or genes drive each result; solid points pass the FDR threshold
-and hollow points do not; colour separates knowledgebases or GO from KEGG when
-more than one appears in the top results.
+With `enrichment.make_plots: "yes"` each analysis gets a figure in
+`<out>/enrichment/`. There are four, in two geometries:
 
-Two deliberate choices in how these read:
+| Plot | Geometry |
+|---|---|
+| `<assoc>_enrichment_features.jpg` | knowledgebase blocks |
+| `<assoc>_enrichment_features_qc.jpg` | knowledgebase blocks, QC sets only |
+| `<assoc>_enrichment_pathways.jpg` | dot plot, one panel per collection |
+| `<assoc>_enrichment_traits.jpg` | dot plot |
 
-1. Non-significant results are shown rather than dropped, so a plot with no
-   solid points tells you directly that nothing was significant -- the subtitle
-   says so too. Seeing that the best hit was p = 0.2 is more useful than an
-   empty figure.
-2. The x axis is -log10(FDR), following knowYourCG, whose `KYCG_plotDot` and
-   `KYCG_plotBar` both default to `-log10(FDR)`. A dashed reference line marks
-   `enrichment.threshold`, so the cutoff that decides solid from hollow sits on
+**The two feature plots** follow the shape of knowYourCG's
+`KYCG_plotEnrichAll`: every tested knowledgebase gets a coloured block along
+the x axis, labelled underneath with the number of features tested in it, and
+its enriched features sit directly above it. The y axis is -log10(FDR), point
+size is the log2 odds ratio, and the strongest hits are labelled.
+
+That geometry is chosen for a statistical reason, not a visual one. Because
+the FDR is computed within each knowledgebase, q-values from a 2-feature set
+and a 1,188-feature set are not one ranking -- a single ordered list would
+imply they are. Giving each knowledgebase its own block removes the implied
+cross-set ranking while keeping every set in one figure, which faceting cannot
+do at 13 sets. A set with no hits keeps its block, so "tested and found
+nothing" is visible rather than absent. Only enriched features are drawn:
+the test is one-sided, so a fold enrichment below 1 carries no evidence here.
+
+**The QC plot** holds `enrichment.qc_knowledgebases` and nothing else, and its
+subtitle says what it is for. Enrichment there is not a finding about biology:
+it says the hit list tracks probe type, artefact-prone regions or local CpG
+density, which is a reason to be careful with the other enrichment results. An
+empty QC plot is the good outcome, and it still shows its blocks so you can
+see the checks ran.
+
+**The pathway and trait plots** stay dot plots of the top
+`enrichment.plot_top_n` by FDR. Point size and transparency carry how many
+CpGs or genes drive each result; solid points pass the FDR threshold and
+hollow ones do not.
+
+Four deliberate choices in how all of these read:
+
+1. Non-significant results are shown rather than dropped in the dot plots, so
+   a plot with no solid points tells you directly that nothing was significant
+   -- the subtitle says so too. Seeing that the best hit was p = 0.2 is more
+   useful than an empty figure. The shape legend always lists both
+   `FDR < threshold` and `FDR >= threshold`, even when every plotted result
+   falls on one side, so a plot of all-significant results still says what
+   solid and hollow mean.
+2. The significance axis is -log10(FDR) throughout, following knowYourCG,
+   whose `KYCG_plotDot` and `KYCG_plotBar` both default to `-log10(FDR)`. A
+   dashed reference line marks `enrichment.threshold`, so the cutoff sits on
    the axis. A strong enrichment over a large feature can push the FDR below
    the smallest representable double, so `enrich_features.R` and
-   `enrich_traits.R` also emit exact `neg_log10_p` and `neg_log10_fdr` columns
-   computed on the log scale, and the plots use those. `gometh` returns a
+   `enrich_traits.R` emit exact `neg_log10_p` and `neg_log10_fdr` columns
+   computed on the log scale and the plots use those. `gometh` returns a
    linear FDR only, so the pathways plot falls back to a labelled cap, and if
-   an axis does collapse the plot switches to fold enrichment and says so.
-   The shape legend always lists both `FDR < threshold` and `FDR >= threshold`,
-   even when every plotted result falls on one side, so a plot of all-
-   significant results still says what solid and hollow mean.
-3. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
-   collection*, each panel on its own x axis. This is not only cosmetic:
-   `enrich_pathways.R` calls `gometh` once per collection and keeps each
-   collection's own FDR, so GO and KEGG are separate multiple-testing families.
-   A pooled ranking would also be swamped by GO, which carries some 22,000 terms
-   against KEGG's ~350 -- in testing, a pooled top 10 contained no KEGG pathways
-   at all. Because the two families are corrected separately they are not
-   directly comparable, so they do not share a scale; significance is read from
-   whether a point is solid, which is per-collection.
-4. The KYCG features get a second plot,
-   `<assoc>_enrichment_features_by_knowledgebase.jpg`, showing the strongest
-   feature from each knowledgebase. `TFBSrm` alone is around 84% of the
-   features tested, so the pooled top 10 is mostly TF motifs and knowledgebases
-   such as PMD, A/B compartment, repeats and CTCF binding rarely surface even
-   when they have a significant hit. Unlike GO/KEGG this is *not* a
-   multiple-testing issue -- `enrich_features.R` corrects all features as one
-   pooled BH family, and correcting within knowledgebase instead changed the
-   significant count by one in testing -- so the pooled ranking stays valid and
-   both views are kept. This plot's x axis is fold enrichment, not -log10(FDR),
-   because a large feature earns a smaller p-value at the same fold enrichment
-   as a small one; ranking knowledgebases by p would partly re-sort them by
-   feature size.
+   an axis does collapse it switches to fold enrichment and says so.
+3. The feature plots cap the y axis at -log10(FDR) = 40, marked with a dotted
+   line and counted in the subtitle. Without it a single 10^-800 result
+   compresses everything else onto the axis floor.
+4. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
+   collection*, each panel on its own x axis -- the same reasoning as the
+   feature blocks. `enrich_pathways.R` calls `gometh` once per collection and
+   keeps each collection's own FDR, so GO and KEGG are separate
+   multiple-testing families. A pooled ranking would also be swamped by GO,
+   which carries some 22,000 terms against KEGG's ~350; in testing a pooled
+   top 10 contained no KEGG pathways at all.
 
-The plot is written even when the table is empty or the test was skipped; it
+Every plot is written even when the table is empty or the test was skipped; it
 then carries a panel naming the reason. That is why these are ordinary tracked
 outputs rather than untracked files -- there is no case in which the rule
 produces nothing, so Snakemake never looks for a file that was not created.
-
 ### *Run Provenance*
 
 <a name="run-provenance"></a>

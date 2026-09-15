@@ -44,7 +44,8 @@ rule enrich_features:
         significance = CW.enrich_significance,
         threshold = CW.enrich_threshold,
         min_set = CW.enrich_min_set_size,
-        sets = ",".join(CW.kycg_enrichment_sets),
+        sets = ",".join(CW.kycg_tested_sets),
+        qc_sets = ",".join(CW.kycg_qc_sets) or "NONE",
         fdr_by_kb = CW.enrich_fdr_by_kb
     conda:
         "../envs/enrichment.yaml"
@@ -54,6 +55,7 @@ rule enrich_features:
         --input-file {input.results} \
         --kycg-dir {input.kycg_dir} \
         --sets {params.sets} \
+        --qc-sets {params.qc_sets} \
         --fdr-by-knowledgebase {params.fdr_by_kb} \
         --probe-order {input.ordering} \
         --stratified {params.strat} \

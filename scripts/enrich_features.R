@@ -33,6 +33,14 @@ parser$add_argument('--fdr-by-knowledgebase', default = "yes",
                                  "(yes, the default and what",
                                  "knowYourCG::testEnrichment does) rather than",
                                  "pooled across all of them (no)."))
+parser$add_argument('--qc-sets', default = "",
+                    help = paste("Comma-separated subset of --sets that are",
+                                 "design/QC knowledgebases rather than",
+                                 "biological ones. They are tested and",
+                                 "reported in the same table, tagged",
+                                 "role = 'qc', and plotted separately:",
+                                 "enrichment in one of these says the hit list",
+                                 "tracks array design rather than biology."))
 parser$add_argument('--sets', default = "all",
                     help = paste("Comma-separated KYCG set names to test, or",
                                  "'all' for every .cm in --kycg-dir. Named",
@@ -42,7 +50,7 @@ parser$add_argument('--sets', default = "all",
 parser$add_argument('--output', required = TRUE)
 args <- parser$parse_args()
 
-OUT_COLS <- c("knowledgebase", "feature", "n_universe", "n_significant",
+OUT_COLS <- c("knowledgebase", "role", "feature", "n_universe", "n_significant",
               "n_in_feature", "n_overlap", "expected", "fold_enrichment",
               "neg_log10_p", "neg_log10_fdr", "n_tested_in_kb",
               "log2_odds_ratio", "p_value", "fdr")
@@ -132,6 +140,15 @@ if (length(collected) == 0L) {
 }
 
 all <- rbindlist(collected, fill = TRUE)
+
+# Tag each row biological or qc. The role does not change the testing family --
+# that is the knowledgebase -- it only decides which figure a row appears in.
+# "NONE" is the sentinel the rule passes when no QC sets are configured; an
+# empty string cannot be handed through the shell command cleanly.
+.qc <- if (identical(toupper(trimws(args$qc_sets)), "NONE")) character(0) else
+    trimws(strsplit(args$qc_sets, ",", fixed = TRUE)[[1]])
+.qc <- .qc[nzchar(.qc)]
+all[, role := fifelse(knowledgebase %in% .qc, "qc", "biological")]
 setnames(all, c("Mask", "N_univ", "N_query", "N_mask", "N_overlap"),
          c("feature", "n_universe", "n_significant", "n_in_feature", "n_overlap"))
 

@@ -179,27 +179,48 @@ enrichment:
   min_set_size: 20
 
   # Which KYCG knowledgebases to test.                                   [CHECK]
-  # A short biological selection by default -- not everything the platform
-  # publishes (EPIC 17 sets, MSA 32), most of which is either technical
-  # (probe type, chemistry, blacklist, CpG density), redundant with another
-  # set or with a column the results already carry (CGI duplicates
-  # CGIposition; REMCChromHMM and HM are largely nested in ChromHMM), or so
-  # large it costs everything else FDR power (TFBSrm is 1188 motifs, 84% of
-  # all features tested on EPIC).
+  # The biological knowledgebases. On EPIC these 13 plus the four QC sets
+  # below are everything the platform publishes; other platforms publish more
+  # (MSA has 32, incl. tissue signatures, CoRSIVs, conservation), and any of
+  # them can be named here. Several overlap by construction -- REMCChromHMM
+  # restates ChromHMM, HM is the data ChromHMM is called from, rmsk2 refines
+  # rmsk1, CGI duplicates the CGIposition column -- so read them as
+  # corroborating rather than independent. Because each knowledgebase is
+  # corrected within itself, adding one costs the others nothing.
+  #
+  # See data/kycg_set_coverage.tsv for everything available per platform.
   #
   # Add any published set by name, e.g. [ChromHMM, PMD, HM, MetagenePC], or
   # use `all` for everything the platform publishes. Set names and what each
   # one means are in the cached registry -- see the README section on the
   # KYCG knowledgebases.
   knowledgebases:
-    - ChromHMM        # 18 chromatin states
-    - PMD             # partially methylated domains
+    - ChromHMM        # 18 chromatin states (ENCODE)
+    - REMCChromHMM    # 15 chromatin states (Roadmap)
+    - HM              # histone marks and variants
+    - TFBSrm          # TF binding, 1188 motifs (ReMap 2022)
+    - CTCFbind        # methylation-sensitive CTCF binding
+    - CGI             # island / shore / shelf / open sea
+    - MetagenePC      # position relative to the gene
     - ABCompartment   # Hi-C A/B compartments
+    - PMD             # partially methylated domains
     - rmsk1           # repeat classes
     - rmsk2           # repeat families
-    - TFBSrm          # TF binding, 1188 motifs (ReMap 2022)
+    - Tetranuc2       # WCGW / SCGS sequence context
     - ImprintingDMR   # positive control: allele-specific methylation
-    - CTCFbind        # methylation-sensitive CTCF binding
+
+  # Design and QC knowledgebases.                                        [CHECK]
+  # Tested and written to the same results table, tagged role = "qc", but
+  # plotted separately in <assoc>_enrichment_features_qc.jpg. Enrichment in
+  # one of these is not a finding about biology -- it says the hit list tracks
+  # probe design, mappability or local CpG density, which is a reason to be
+  # careful with the other enrichment results. An empty QC plot is the good
+  # outcome. Set to "none" to skip them.
+  qc_knowledgebases:
+    - ProbeType         # type I vs type II chemistry
+    - InfiniumChemistry # finer design partition, incl. colour channel
+    - Blacklist         # ENCODE v2 artefact regions
+    - nFlankCG          # local CpG density
 
   # Adjust p-values within each knowledgebase rather than pooled across    [CHECK]
   # all of them. Each knowledgebase is a separate enrichment analysis, so
@@ -214,12 +235,13 @@ enrichment:
   fdr_by_knowledgebase: "yes"
 
   # Summary dot plots in <out>/enrichment/.                              [CHECK]
-  # Four plots: the pooled top hits for features, GO/KEGG and traits, plus a
-  # fourth showing the strongest feature from each KYCG knowledgebase. That
-  # last one exists because TFBSrm alone is ~84% of the features tested, so a
-  # pooled ranking is dominated by TF motifs and most knowledgebases never
-  # appear; it plots fold enrichment, which is comparable across them.
-  # Shows the top `plot_top_n` results by p-value, with point size and
+  # Four plots. The two KYCG ones (biological and QC) follow knowYourCG's
+  # KYCG_plotEnrichAll: one block per tested knowledgebase along the x axis,
+  # -log10(FDR) on y, point size the log2 odds ratio. Blocks rather than a
+  # single ranking because the FDR is computed within each knowledgebase, so
+  # q-values from a 2-feature and a 1188-feature set are not one ranking.
+  # GO/KEGG and traits stay dot plots of the top `plot_top_n`, with point
+  # size and
   # transparency carrying how many CpGs or genes drive each result, and solid
   # versus hollow points separating what passes the FDR threshold above from
   # what does not. Non-significant results are shown rather than dropped, so a

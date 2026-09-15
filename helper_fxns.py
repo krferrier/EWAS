@@ -32,6 +32,7 @@ class ConfigWizard(object):
         "bios_eqtm_url", "hgnc_complete_set_url",
         "enrichment", "enrich_significance", "enrich_threshold",
         "enrich_min_set_size", "ewas_atlas_url", "_enrich_kbs",
+        "_enrich_qc_kbs",
         "enrich_fdr_by_kb",
         "enrichment_plots", "enrich_plot_top_n",
         "dmr_make_zoom", "dmr_make_combined", "dmr_plot_min_probes",
@@ -157,6 +158,7 @@ class ConfigWizard(object):
         self.enrich_min_set_size: int = int(enrich_cfg.get("min_set_size", 20))
         # Which KYCG knowledgebases to test. A list of set names, or "all".
         self._enrich_kbs = enrich_cfg.get("knowledgebases")
+        self._enrich_qc_kbs = enrich_cfg.get("qc_knowledgebases")
         # Each knowledgebase is a separate enrichment analysis, so by default
         # the FDR is computed within one rather than pooled across all of them
         # -- otherwise the FDR for a chromatin state depends on how many TF
@@ -466,33 +468,46 @@ class ConfigWizard(object):
     #
     # Chosen to be biological, non-redundant, and not already derivable from
     # the annotated results:
-    #   ChromHMM       chromatin state -- the most directly interpretable
-    #   PMD            partially methylated domains
-    #   ABCompartment  Hi-C A/B compartments
-    #   rmsk1, rmsk2   repeat classes and families
-    #   TFBSrm         transcription factor binding, 1188 motifs
-    #   ImprintingDMR  a positive control: a hit means allele-specific biology
-    #   CTCFbind       methylation-sensitive CTCF binding; one test
+    #   ChromHMM, REMCChromHMM  chromatin state, two references
+    #   HM                      histone marks and variants
+    #   TFBSrm                  transcription factor binding, 1188 motifs
+    #   CTCFbind                methylation-sensitive CTCF binding
+    #   CGI                     island / shore / shelf / open sea
+    #   MetagenePC              position relative to the gene
+    #   ABCompartment           Hi-C A/B compartments
+    #   PMD                     partially methylated domains
+    #   rmsk1, rmsk2            repeat classes and families
+    #   Tetranuc2               WCGW / SCGS sequence context
+    #   ImprintingDMR           positive control: allele-specific methylation
     #
-    # rmsk2 and TFBSrm are included because the FDR is computed within each
-    # knowledgebase, not across all of them, so a large set no longer spends
-    # anything the smaller sets need. See enrich_fdr_by_kb.
+    # Large and overlapping sets are all kept because the FDR is computed
+    # within each knowledgebase, not across all of them, so no set spends
+    # anything the others need. See enrich_fdr_by_kb.
     #
-    # Left out on purpose. Design and QC sets (ProbeType, InfiniumChemistry,
-    # Blacklist, nFlankCG) are not biology -- Blacklist and CTCF binding are
-    # still reported per CpG as annotation columns, so a hit list can be
-    # inspected for artefacts without testing for them. CGI duplicates the
-    # CGIposition column this workflow derives from UCSC islands.
-    # REMCChromHMM restates ChromHMM from a different reference, and HM is the
-    # histone data ChromHMM states are called from, so both are largely nested
-    # in it. Tetranuc2 is sequence composition and overlaps nFlankCG.
+    # On EPIC these 13 plus the four QC sets below are everything the platform
+    # publishes. Other platforms publish more -- MSA has 32 sets, including
+    # tissue signatures, CoRSIVs and evolutionary conservation -- and any of
+    # them can be named here. Several of these overlap by construction
+    # (REMCChromHMM restates ChromHMM from another reference; HM is the histone
+    # data ChromHMM states are called from; rmsk2 is rmsk1 at finer resolution;
+    # Tetranuc2 shares its context partition with nFlankCG; CGI covers what the
+    # CGIposition column already carries), which is a reason to read them as
+    # corroborating rather than independent -- not a reason to drop them.
     #
     # Widen with `enrichment: knowledgebases:` in the config -- a list of set
     # names, or "all" for everything the platform publishes.
     KYCG_ENRICHMENT_SETS = (
-        "ChromHMM", "PMD", "ABCompartment", "rmsk1", "rmsk2", "TFBSrm",
-        "ImprintingDMR", "CTCFbind",
+        "ChromHMM", "REMCChromHMM", "HM", "TFBSrm", "CTCFbind",
+        "CGI", "MetagenePC", "ABCompartment", "PMD",
+        "rmsk1", "rmsk2", "Tetranuc2", "ImprintingDMR",
     )
+
+    # Design and QC sets. Tested and reported in the same table (with
+    # role = "qc"), but plotted separately, because enrichment here is not a
+    # finding about biology: it says the hit list tracks probe design,
+    # artefact-prone regions or CpG density. Zhou's registry frames the first
+    # three as exactly this kind of post-hoc check.
+    KYCG_QC_SETS = ("ProbeType", "InfiniumChemistry", "Blacklist", "nFlankCG")
 
     @property
     def kycg_enrichment_sets(self) -> tuple:
@@ -507,13 +522,33 @@ class ConfigWizard(object):
         return tuple(str(x).strip() for x in cfg if str(x).strip())
 
     @property
+    def kycg_qc_sets(self) -> tuple:
+        """Design/QC set names tested and reported under role = "qc"."""
+        cfg = getattr(self, "_enrich_qc_kbs", None)
+        if cfg is None:
+            return self.KYCG_QC_SETS
+        if isinstance(cfg, str):
+            if cfg.strip().lower() in ("", "none"):
+                return ()
+            return tuple(x.strip() for x in cfg.split(",") if x.strip())
+        return tuple(str(x).strip() for x in cfg if str(x).strip())
+
+    @property
+    def kycg_tested_sets(self) -> tuple:
+        """Everything enrich_features tests: biological plus QC."""
+        bio = self.kycg_enrichment_sets
+        if bio == ("all",):
+            return ("all",)
+        return tuple(dict.fromkeys(bio + self.kycg_qc_sets))
+
+    @property
     def kycg_download_sets(self) -> tuple:
         """Sets the fetch rule needs: annotation columns plus tested sets.
 
         Downloading only what is used matters on MSA, which publishes 32 sets;
         TFBSrm and HM alone are hundreds of megabytes.
         """
-        tested = self.kycg_enrichment_sets
+        tested = self.kycg_tested_sets
         if tested == ("all",):
             return ("all",)
         return tuple(dict.fromkeys(tuple(self.KYCG_FEATURE_SETS) + tested))
@@ -639,12 +674,11 @@ class ConfigWizard(object):
 
     # One summary plot per enrichment analysis, named by kind so the
     # plot_enrichment rule can carry a {kind} wildcard.
-    # "features_by_knowledgebase" plots the same table as "features" a second
-    # way: the strongest hit from each knowledgebase rather than the pooled
-    # top N. TFBSrm alone is ~84% of the features tested, so the pooled
-    # ranking is dominated by TF motifs and most knowledgebases never surface.
-    ENRICHMENT_KINDS = ("features", "features_by_knowledgebase",
-                        "pathways", "traits")
+    # "features" and "features_qc" plot two slices of the same table, split on
+    # its role column: the biological knowledgebases and the design/QC ones.
+    # They are kept apart because enrichment in a QC set is a warning about the
+    # other results, not a result of its own.
+    ENRICHMENT_KINDS = ("features", "features_qc", "pathways", "traits")
 
     def enrichment_plot(self, kind: str) -> Path:
         return self._out("enrichment", f"{self.assoc_var}_enrichment_{kind}.jpg")
@@ -657,7 +691,7 @@ class ConfigWizard(object):
     def enrichment_table(self, kind: str) -> Path:
         return {
             "features": self.enrichment_feature_results,
-            "features_by_knowledgebase": self.enrichment_feature_results,
+            "features_qc": self.enrichment_feature_results,
             "pathways": self.enrichment_pathway_results,
             "traits": self.enrichment_trait_results,
         }[kind]
