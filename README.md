@@ -555,7 +555,7 @@ power from the small sets to the large one.
 The trade is that q-values from families of very different sizes are no longer
 a single ranking: a motif needs stronger evidence than a chromatin state to
 reach the same FDR. The features table records `n_tested_in_kb` so family size
-is visible, and the pooled plot's subtitle says the correction was per
+is visible, and the figure legend below states that the correction was per
 knowledgebase. Ordering that plot by FDR anyway follows the reference, whose
 `KYCG_plotDot` defaults to `order_by = "FDR"` alongside `mtc_by_group = TRUE`.
 Set `fdr_by_knowledgebase: "no"` for one pooled family instead.
@@ -638,7 +638,9 @@ and the sets are browsable at
 #### Enrichment plots
 
 With `enrichment.make_plots: "yes"` each analysis gets a figure in
-`<out>/enrichment/`. There are four, in two geometries:
+`<out>/enrichment/`. Each carries a title and nothing else; everything needed
+to read one is in [Figure legends](#enrichment-figure-legends) below. There are
+four, in two geometries:
 
 | Plot | Geometry |
 |---|---|
@@ -663,7 +665,7 @@ nothing" is visible rather than absent. Only enriched features are drawn:
 the test is one-sided, so a fold enrichment below 1 carries no evidence here.
 
 **The QC plot** holds `enrichment.qc_knowledgebases` and nothing else, and its
-subtitle says what it is for. Enrichment there is not a finding about biology:
+legend says what it is for. Enrichment there is not a finding about biology:
 it says the hit list tracks probe type, artefact-prone regions or local CpG
 density, which is a reason to be careful with the other enrichment results. An
 empty QC plot is the good outcome, and it still shows its blocks so you can
@@ -678,7 +680,7 @@ Four deliberate choices in how all of these read:
 
 1. Non-significant results are shown rather than dropped in the dot plots, so
    a plot with no solid points tells you directly that nothing was significant
-   -- the subtitle says so too. Seeing that the best hit was p = 0.2 is more
+   rather than by an empty figure. Seeing that the best hit was p = 0.2 is more
    useful than an empty figure. The shape legend always lists both
    `FDR < threshold` and `FDR >= threshold`, even when every plotted result
    falls on one side, so a plot of all-significant results still says what
@@ -691,11 +693,18 @@ Four deliberate choices in how all of these read:
    `enrich_traits.R` emit exact `neg_log10_p` and `neg_log10_fdr` columns
    computed on the log scale and the plots use those. `gometh` returns a
    linear FDR only, so the pathways plot falls back to a labelled cap, and if
-   an axis does collapse it switches to fold enrichment and says so.
+   an axis does collapse it switches to fold enrichment, which the axis title
+   states.
 3. The feature plots cap the y axis at -log10(FDR) = 40, marked with a dotted
-   line and counted in the subtitle. Without it a single 10^-800 result
-   compresses everything else onto the axis floor.
-4. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
+   line, with capped points drawn just above it. Without the cap a single
+   10^-800 result compresses everything else onto the axis floor. The number
+   capped is reported on stderr by the rule, so it is in the run log.
+4. Every figure carries a title and nothing else -- no subtitle, no caption.
+   Counts and interpretation belong in the legend, below, not printed into the
+   image. The rule logs the counts that a legend needs (how many features were
+   tested, how many reached the threshold, how many were capped) so they can
+   be read from the run log without opening the table.
+5. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
    collection*, each panel on its own x axis -- the same reasoning as the
    feature blocks. `enrich_pathways.R` calls `gometh` once per collection and
    keeps each collection's own FDR, so GO and KEGG are separate
@@ -703,6 +712,66 @@ Four deliberate choices in how all of these read:
    which carries some 22,000 terms against KEGG's ~350; in testing a pooled
    top 10 contained no KEGG pathways at all.
 
+##### Figure legends
+
+<a name="enrichment-figure-legends"></a>
+
+The figures carry a title only, so everything needed to read one is here.
+These are written to be usable as legends directly; replace `<assoc>` and the
+threshold with the values from your run.
+
+**`<assoc>_enrichment_features.jpg`** — KYCG feature enrichment for
+`<assoc>`. Each block along the x axis is one tested knowledgebase, labelled
+with the number of features tested in it and delimited by alternating
+shading; the features of a knowledgebase are spaced across its block. The y
+axis is -log10(FDR), point size is the log2 odds ratio, and colour
+distinguishes knowledgebases only. Only features that are enriched
+(fold enrichment > 1) and pass the FDR threshold are drawn, because the
+hypergeometric test is one-sided; a knowledgebase with no such feature keeps
+its block and shows no points, meaning it was tested and nothing was found.
+The dashed horizontal line is the FDR threshold (`enrichment.threshold`,
+0.05 by default). The dotted line is the display cap at -log10(FDR) = 40;
+points beyond it are drawn just above the cap, so their heights are not to
+scale. The strongest feature in each knowledgebase is labelled, up to 14
+knowledgebases ordered by best FDR -- not the strongest features overall,
+which in a run with many significant transcription-factor motifs would all
+fall in one block. **FDR is adjusted within each knowledgebase, not across
+them**, so heights are comparable within a block but not between blocks: a
+motif from a 1,188-feature set needs stronger evidence than a chromatin state
+from an 18-feature set to reach the same FDR. The full ranking, the
+contingency counts and the family size each FDR was computed in
+(`n_tested_in_kb`) are in `<assoc>_enrichment_features.tsv`.
+
+**`<assoc>_enrichment_features_qc.jpg`** — post-hoc QC checks for `<assoc>`,
+drawn exactly as above but restricted to the design and QC knowledgebases
+(`enrichment.qc_knowledgebases`: probe type, Infinium chemistry, the ENCODE
+blacklist and local CpG density). These sets are technical, not biological.
+Enrichment here indicates that the significant CpGs track array design,
+mappability or CpG density rather than biology, and is therefore a reason to
+treat the other enrichment results cautiously -- it is not a finding in its
+own right. **A figure with no points is the expected and desirable outcome**;
+the blocks are still drawn so that the checks are visibly present.
+
+**`<assoc>_enrichment_pathways.jpg`** — GO and KEGG enrichment for the genes
+that the significant CpGs for `<assoc>` map to, tested with
+`missMethyl::gometh`, which corrects for the number of probes per gene. The
+top `enrichment.plot_top_n` terms by FDR are shown for each collection in its
+own panel, on its own x axis, because GO and KEGG are adjusted separately and
+so are not directly comparable. The x axis is -log10(FDR), point size is the
+number of significant genes in the term, and solid points pass the FDR
+threshold while hollow points do not; the dashed line marks the threshold.
+Non-significant terms are shown deliberately, so that a figure with no solid
+points reports the absence of a result rather than appearing to be missing.
+
+**`<assoc>_enrichment_traits.jpg`** — EWAS Atlas trait enrichment for
+`<assoc>`: the top `enrichment.plot_top_n` traits whose previously reported
+CpGs overlap the significant set, drawn as above with point size giving the
+number of overlapping CpGs. Traits are tested against the CpGs actually
+tested in this run, not the whole array.
+
+A figure written for a table that is empty, or for an analysis that was
+skipped, contains a single panel naming the reason instead of any of the
+above.
 Every plot is written even when the table is empty or the test was skipped; it
 then carries a panel naming the reason. That is why these are ordinary tracked
 outputs rather than untracked files -- there is no case in which the rule

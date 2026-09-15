@@ -81,13 +81,7 @@ SPEC <- list(
         label = "feature", group = "knowledgebase", facet = NULL,
         count = "n_overlap",
         unit = "CpGs", axis = "Feature",
-        title = "KYCG post-hoc QC checks", colour = "#999999",
-        qc_note = paste("These sets are technical, not biological. Enrichment",
-                        "here suggests the hits track probe design,",
-                        "mappability or local CpG density rather than biology,",
-                        "so it is a reason to be careful with the other",
-                        "enrichment results -- not a finding in itself. No",
-                        "points is the expected outcome.")),
+        title = "KYCG post-hoc QC checks", colour = "#999999"),
     pathways = list(
         geom = "dot",
         label = "term", group = NULL, facet = "collection",
@@ -159,37 +153,32 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     # carries no evidence here.
     pts <- dt[fold_enrichment > 1 & fdr < args$fdr_threshold]
     n_capped <- pts[neg_log10_fdr > CAP, .N]
-    if (nrow(pts)) pts[, .y := pmin(neg_log10_fdr, CAP * 1.08)]
+    pts[, .y := pmin(neg_log10_fdr, CAP * 1.08)]
 
     blocks <- dt[, .(beg = min(.xpos), middle = mean(.xpos), end = max(.xpos),
                      n = .N), by = .kb]
+    setorder(blocks, middle)
     blocks[, lab := sprintf("%s (%d)", .kb, n)]
-    # A one-feature set has beg == end, which draws a zero-length segment and
-    # so renders as a label with no block. Give every block a floor width.
+    # A one-feature set has beg == end, so its band would have zero width.
+    # Give every block a floor width, and split the gap between neighbours so
+    # the shading tiles the axis without overlapping.
     min_w <- 0.006 * max(1e-9, diff(range(dt$.xpos)))
     blocks[, half := pmax((end - beg) / 2, min_w)]
     blocks[, `:=`(beg = middle - half, end = middle + half)]
+    pad <- if (nrow(blocks) > 1L) min(diff(blocks$middle)) * 0.12 else min_w
+    blocks[, `:=`(rmin = beg - pad, rmax = end + pad)]
+    # Alternate bands delimit the knowledgebases, so the blocks need no
+    # in-panel segment or text: the tick labels below carry the names.
+    blocks[, shade := seq_len(.N) %% 2L == 0L]
 
-    # The axis follows the data rather than the cap: on the QC figure the
-    # points sit near the threshold, and defaulting to the cap would leave the
-    # panel almost empty.
-    y_top <- if (nrow(pts)) max(6, max(pts$.y) * 1.14) else 6
-    sub <- sprintf("%d feature%s enriched at FDR < %g, of %d tested across %d knowledgebases; FDR corrected within each",
-                   nrow(pts), if (nrow(pts) == 1L) "" else "s",
-                   args$fdr_threshold, nrow(dt), uniqueN(dt$.kb))
-    if (!is.null(spec$qc_note)) sub <- paste0(sub, "\n", spec$qc_note)
-    if (nrow(pts) == 0L) {
-        sub <- paste0(sub, "\nNothing reached the threshold in any set.",
-                      if (!is.null(spec$qc_note)) "" else
-                          " Blocks below the axis show what was tested.")
-    }
-    if (n_capped > 0L) {
-        sub <- paste0(sub, sprintf(
-            "\n%d point%s capped at -log10(FDR) = %d (dotted line).",
-            n_capped, if (n_capped == 1L) "" else "s", CAP))
-    }
+    # Headroom for the repelled labels, which sit above the highest points.
+    y_top <- if (nrow(pts)) max(6, max(pts$.y) * 1.18) else 6
 
     p <- ggplot(pts, aes(.xpos, .y)) +
+        geom_rect(data = blocks[shade == TRUE],
+                  aes(xmin = rmin, xmax = rmax, ymin = -Inf, ymax = Inf),
+                  fill = "grey92", colour = NA, alpha = 0.55,
+                  inherit.aes = FALSE) +
         geom_hline(yintercept = -log10(args$fdr_threshold), linetype = "dashed",
                    colour = "grey55", linewidth = 0.3)
     if (n_capped > 0L) {
@@ -197,44 +186,57 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
                             colour = "grey60", linewidth = 0.3)
     }
     if (nrow(pts)) {
+        # The strongest hit in each knowledgebase, not the strongest N overall.
+        # Labelling the global top N puts every label inside whichever block is
+        # densest -- TFBSrm can contribute 800+ significant motifs -- where
+        # they collide with each other and with the points. One label per
+        # block spreads them across the axis, and it suits what this figure is
+        # for: which knowledgebases are enriched, with the full ranking left to
+        # the results table. Blocks are taken in order of their best FDR, so a
+        # platform publishing 30-odd sets still gets a readable number.
+        lab_kb <- pts[, .(best = max(neg_log10_fdr)), by = .kb
+                      ][order(-best)][seq_len(min(N_LABEL, .N)), .kb]
+        labs_dt <- pts[.kb %in% lab_kb][order(-neg_log10_fdr),
+                                        head(.SD, 1L), by = .kb]
         p <- p +
-            geom_point(aes(size = log2_odds_ratio, colour = .kb), alpha = 0.65) +
+            geom_point(aes(size = log2_odds_ratio, colour = .kb), alpha = 0.6,
+                       stroke = 0) +
+            # Repelled upward off its own block's cloud. point.padding has to
+            # cover the largest points (6 mm) because ggrepel knows nothing of
+            # point size; direction = "y" keeps a label over the block it
+            # belongs to instead of drifting across a neighbour, and
+            # min.segment.length = 0 keeps the connector drawn however short.
             geom_text_repel(
-                data = pts[order(-neg_log10_fdr)][seq_len(min(N_LABEL, .N))],
-                aes(label = feature, colour = .kb), size = 2.9,
-                direction = "y", nudge_y = 0.25, max.overlaps = 100,
-                segment.colour = "grey70", segment.size = 0.2,
+                data = labs_dt, aes(label = feature, colour = .kb), size = 2.9,
+                direction = "y", nudge_y = 0.04 * y_top,
+                point.padding = 0.6, box.padding = 0.35,
+                min.segment.length = 0, force = 4, force_pull = 0.3,
+                max.overlaps = Inf, seed = 1,
+                segment.colour = "grey60", segment.size = 0.2,
                 show.legend = FALSE)
     }
+    y_breaks <- pretty(c(0, y_top))
+    y_breaks <- y_breaks[y_breaks >= 0 & y_breaks <= y_top]
     p <- p +
-        # One segment per tested knowledgebase: a set with no hits is still
-        # shown to have been tested.
-        geom_segment(data = blocks,
-                     aes(x = beg, xend = end, y = -0.055 * y_top,
-                         yend = -0.055 * y_top, colour = .kb),
-                     linewidth = 2.5) +
-        geom_text(data = blocks,
-                  aes(middle, -0.075 * y_top, label = lab, colour = .kb),
-                  vjust = 1, hjust = 1, angle = 35, size = 2.9,
-                  show.legend = FALSE) +
         scale_colour_discrete(guide = "none") +
         scale_size_continuous(range = c(1.5, 6),
                               name = expression(log[2] ~ "(odds ratio)")) +
-        scale_x_continuous(expand = expansion(mult = 0.045)) +
-        coord_cartesian(clip = "off", ylim = c(-0.06 * y_top, y_top)) +
-        labs(x = NULL, y = expression(-log[10] ~ "(FDR)"), title = plot_title,
-             subtitle = paste(vapply(strsplit(sub, "\n", fixed = TRUE)[[1]],
-                                     function(l) paste(strwrap(l, 95),
-                                                       collapse = "\n"),
-                                     character(1), USE.NAMES = FALSE),
-                              collapse = "\n")) +
+        # Knowledgebase names are real axis labels, so they sit outside the
+        # panel where axis labels belong rather than being drawn into it.
+        scale_x_continuous(breaks = blocks$middle, labels = blocks$lab,
+                           expand = expansion(mult = 0.02)) +
+        scale_y_continuous(breaks = y_breaks, expand = expansion(mult = 0.02)) +
+        coord_cartesian(ylim = c(0, y_top)) +
+        # Title only. Everything else about how to read this figure belongs in
+        # its legend, in the README, not printed into the image.
+        labs(x = NULL, y = expression(-log[10] ~ "(FDR)"), title = plot_title) +
         theme_bw(base_size = 13) +
         theme(legend.position = "right",
-              plot.subtitle = element_text(colour = "grey30", size = 10),
-              plot.margin = margin(6, 6, 62, 16),
               panel.grid.major.x = element_blank(),
               panel.grid.minor.x = element_blank(),
-              axis.text.x = element_blank(), axis.ticks.x = element_blank())
+              axis.text.x = element_text(angle = 40, hjust = 1, vjust = 1,
+                                         size = 9, colour = "grey20"),
+              axis.ticks.x = element_line(colour = "grey70", linewidth = 0.3))
 
     ggsave(path, plot = p, width = 9.5, height = 6.6, dpi = 300, bg = "white",
            limitsize = FALSE)
@@ -368,8 +370,8 @@ n_sig <- sum(top$.signif == "TRUE")
 
 # Fallback for a collapsed p-value axis: if the p-values available to this plot
 # have underflowed, capping them puts every point on one vertical line and
-# hides the ranking, so plot effect size instead. Both the axis title and the
-# subtitle say which is shown, so the two cases are never confused.
+# hides the ranking, so plot effect size instead. The axis title says which
+# quantity is shown, so the two cases are never confused.
 #
 # With neg_log10_p present this is unreachable; it remains for the pathways
 # table, which carries only gometh's linear p-value.
@@ -401,16 +403,6 @@ if (faceted) {
 } else {
     head_desc <- sprintf("top %d of %d tested by FDR", nrow(top), nrow(dt))
 }
-subtitle <- sprintf(
-    "%s; %d at FDR < %g%s%s",
-    head_desc, n_sig, args$fdr_threshold,
-    if (n_sig == 0L) " (no significant results -- all points hollow)" else "",
-    if (n_capped > 0L) sprintf(
-        "\n%d p-value%s underflowed to zero, so the x axis shows %s",
-        n_capped, if (n_capped == 1L) "" else "s",
-        if (use_effect) "fold enrichment" else
-            sprintf("-log10(p) capped at %.0f", LOGP_CAP)) else "")
-
 has_groups <- !all(is.na(top$.group)) && uniqueN(top$.group) > 1L
 
 # Built up front rather than patched onto p$layers[[i]] afterwards: the layer
@@ -461,20 +453,13 @@ p <- ggplot(top, aes(x = .x, y = .wrapped, size = .count, alpha = .count)) +
         override.aes = list(size = 2.5, alpha = 1,
                             colour = if (has_groups) "grey25" else spec$colour))) +
     scale_size(range = c(1.5, 6), name = paste("Number of", spec$unit)) +
-    labs(x = x_lab, y = spec$axis,
-         title = plot_title,
-         # Wrapped per line: the faceted subtitle is long enough to be
-         # clipped at this figure width, but strwrap() on the whole string
-         # would also swallow the explicit break before the capping note.
-         subtitle = paste(vapply(strsplit(subtitle, "\n", fixed = TRUE)[[1]],
-                                 function(ln) paste(strwrap(ln, width = 95),
-                                                    collapse = "\n"),
-                                 character(1), USE.NAMES = FALSE),
-                          collapse = "\n")) +
+    # Title only: how to read the figure belongs in its legend, not printed
+    # into the image. The counts that used to sit in the subtitle are still
+    # reported on stderr by the message() below, and are in the results table.
+    labs(x = x_lab, y = spec$axis, title = plot_title) +
     theme_bw(base_size = 13) +
     theme(legend.position = "right",
           legend.direction = "vertical",
-          plot.subtitle = element_text(colour = "grey30", size = 10),
           axis.text.y = element_text(size = 9, lineheight = 1))
 
 if (has_groups) {
@@ -514,5 +499,6 @@ height <- max(3.2, 1.6 + 0.52 * nrow(top) +
                                                  gregexpr("\n", as.character(top$.wrapped))))))
 ggsave(args$output, plot = p, width = 9.5, height = height, dpi = 300,
        bg = "white", limitsize = FALSE)
-message(sprintf("Wrote %s (%d rows, %d significant, height %.1f in)",
-                basename(args$output), nrow(top), n_sig, height))
+message(sprintf("Wrote %s (%s; %d significant at FDR < %g; height %.1f in)",
+                basename(args$output), head_desc, n_sig, args$fdr_threshold,
+                height))
