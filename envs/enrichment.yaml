@@ -12,6 +12,10 @@ dependencies:
   # scripts/plot_enrichment.R; label wrapping uses base strwrap so stringr is
   # not needed, matching the other plotting scripts in this workflow.
   - r-ggplot2
+  # Hit labels on the KYCG feature plots, which place many labels in a narrow
+  # band above each knowledgebase block. knowYourCG's own plotEnrichAll uses it
+  # for the same reason.
+  - r-ggrepel
   # Feature enrichment reads the v8.1 KYCG knowledgebases through yame rather
   # than knowYourCG. yame's format-6 query carries an explicit universe, so the
   # background is the CpGs actually tested rather than the whole array; it uses
