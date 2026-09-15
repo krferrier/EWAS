@@ -16,6 +16,14 @@ dependencies:
   # band above each knowledgebase block. knowYourCG's own plotEnrichAll uses it
   # for the same reason.
   - r-ggrepel
+  # element_markdown(), so each knowledgebase's axis label can be coloured to
+  # match its block. Passing a colour vector to element_text() does the same
+  # thing but ggplot2 warns that it is not officially supported.
+  - r-ggtext
+  # hue_pal(), to take the discrete palette explicitly so the axis labels and
+  # the points can be given the same colours. Installed with ggplot2 anyway,
+  # but this script calls it directly.
+  - r-scales
   # Feature enrichment reads the v8.1 KYCG knowledgebases through yame rather
   # than knowYourCG. yame's format-6 query carries an explicit universe, so the
   # background is the CpGs actually tested rather than the whole array; it uses

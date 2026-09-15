@@ -31,6 +31,10 @@ suppressPackageStartupMessages({
     library(ggplot2)
     # Label placement for the feature plots; the dot-plot kinds do not need it.
     library(ggrepel)
+    # element_markdown(), for axis labels coloured to match their block. A
+    # vector of colours passed to element_text() also works today, but ggplot2
+    # warns that vectorised input is not officially supported and may change.
+    library(ggtext)
 })
 
 parser <- argparse::ArgumentParser(
@@ -121,6 +125,25 @@ write_placeholder <- function(path, title, reason) {
     message("Wrote placeholder plot: ", reason)
 }
 
+# Display order for the knowledgebase blocks, grouped so that sets carrying
+# related information sit next to each other: the two chromatin-state models
+# beside the histone marks they are called from, the two repeat resolutions
+# together, and so on. Alternating shading follows these groups rather than
+# individual blocks, which is what makes the grouping visible.
+#
+# A set not listed here -- MSA publishes 15 that EPIC does not -- is appended in
+# an "other" group, alphabetically, so an unfamiliar set is never dropped.
+KB_GROUPS <- list(
+    `chromatin state`   = c("ChromHMM", "REMCChromHMM", "ChromHMMfullStack", "HM"),
+    `protein binding`   = c("TFBSrm", "TFBSconsensus", "CTCFbind"),
+    `gene context`      = c("CGI", "MetagenePC", "GeneFeatures"),
+    `large-scale domain` = c("ABCompartment", "PMD"),
+    repeats             = c("rmsk1", "rmsk2"),
+    `sequence context`  = c("Tetranuc2", "nFlankCG", "GCfrac"),
+    imprinting          = c("ImprintingDMR"),
+    `array design`      = c("ProbeType", "InfiniumChemistry", "Blacklist")
+)
+
 #' One block per tested knowledgebase along x, -log10(FDR) on y.
 #'
 #' After knowYourCG::KYCG_plotEnrichAll. Block width grows with log(set size)
@@ -128,7 +151,6 @@ write_placeholder <- function(path, title, reason) {
 #' findable, and every tested knowledgebase keeps its block whether or not it
 #' has hits.
 plot_enrich_all <- function(dt, spec, args, plot_title, path) {
-    CAP <- 40          # -log10(FDR) beyond this is capped; the reference uses 25
     N_LABEL <- 14
 
     dt <- dt[!is.na(fdr) & !is.na(fold_enrichment) & is.finite(fold_enrichment)]
@@ -138,25 +160,42 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
         return(invisible(NULL))
     }
 
-    # Smaller sets first, so the wide ones do not crowd the left edge.
-    gp_size <- sort(table(dt$knowledgebase))
+    # Group the knowledgebases, then order blocks by group.
+    grp <- data.table(
+        kb = unlist(KB_GROUPS, use.names = FALSE),
+        grp = rep(names(KB_GROUPS), lengths(KB_GROUPS)),
+        gi = rep(seq_along(KB_GROUPS), lengths(KB_GROUPS)))
+    grp[, ki := seq_len(.N)]
+    present <- data.table(kb = sort(unique(dt$knowledgebase)))
+    present <- grp[present, on = "kb"]
+    present[is.na(gi), `:=`(grp = "other", gi = length(KB_GROUPS) + 1L,
+                            ki = nrow(grp) + seq_len(.N))]
+    setorder(present, gi, ki)
+
+    gp_size <- table(dt$knowledgebase)[present$kb]
     gp_width <- log(2 + gp_size)
-    dt[, .kb := factor(knowledgebase, levels = names(gp_size))]
+    dt[, .kb := factor(knowledgebase, levels = present$kb)]
     setorder(dt, .kb, feature)
     dt[, .inc := as.numeric((gp_width / gp_size)[as.character(.kb)])]
     dt[, .step := c(0, ifelse(head(as.character(.kb), -1) !=
                               tail(as.character(.kb), -1), 1, 0))]
     dt[, .xpos := cumsum(.inc + .step)]
 
-    # Only enriched, significant features are drawn. Depletion is not shown:
-    # the test is one-sided (phyper lower.tail = FALSE), so a fold below 1
-    # carries no evidence here.
+    # Only enriched, significant features are drawn -- the test is one-sided
+    # (phyper lower.tail = FALSE), so a fold below 1 carries no evidence -- and
+    # only the strongest args$top_n of them per knowledgebase. Drawing every
+    # significant feature makes this figure unreadable as soon as one set is
+    # large: a real run can leave 800+ significant TF motifs, which arrive as a
+    # solid block of overplotted points that hides the smaller sets entirely.
+    # The full ranking is in the results table.
     pts <- dt[fold_enrichment > 1 & fdr < args$fdr_threshold]
-    n_capped <- pts[neg_log10_fdr > CAP, .N]
-    pts[, .y := pmin(neg_log10_fdr, CAP * 1.08)]
+    n_sig <- nrow(pts)
+    pts <- pts[order(-neg_log10_fdr)][, head(.SD, args$top_n), by = .kb]
+    pts[, .y := neg_log10_fdr]
 
     blocks <- dt[, .(beg = min(.xpos), middle = mean(.xpos), end = max(.xpos),
                      n = .N), by = .kb]
+    blocks <- present[, .(.kb = kb, grp, gi)][blocks, on = ".kb"]
     setorder(blocks, middle)
     blocks[, lab := sprintf("%s (%d)", .kb, n)]
     # A one-feature set has beg == end, so its band would have zero width.
@@ -167,41 +206,50 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     blocks[, `:=`(beg = middle - half, end = middle + half)]
     pad <- if (nrow(blocks) > 1L) min(diff(blocks$middle)) * 0.12 else min_w
     blocks[, `:=`(rmin = beg - pad, rmax = end + pad)]
-    # Alternate bands delimit the knowledgebases, so the blocks need no
-    # in-panel segment or text: the tick labels below carry the names.
-    blocks[, shade := seq_len(.N) %% 2L == 0L]
+
+    # Shade alternate GROUPS, so a band covers the related sets together.
+    bands <- blocks[, .(rmin = min(rmin), rmax = max(rmax)), by = .(gi, grp)]
+    setorder(bands, rmin)
+    bands[, shade := seq_len(.N) %% 2L == 0L]
+
+    # Colours are taken explicitly rather than left to the default scale, so
+    # the same values can colour the axis labels: the tick label under a block
+    # then matches the points above it. The labels are rendered as markdown by
+    # element_markdown() below, which is the supported way to colour them
+    # individually.
+    kb_cols <- scales::hue_pal()(nrow(blocks))
+    names(kb_cols) <- as.character(blocks$.kb)
+    blocks[, lab_md := sprintf("<span style='color:%s'>%s</span>",
+                               kb_cols[as.character(.kb)], lab)]
 
     # Headroom for the repelled labels, which sit above the highest points.
     y_top <- if (nrow(pts)) max(6, max(pts$.y) * 1.18) else 6
 
     p <- ggplot(pts, aes(.xpos, .y)) +
-        geom_rect(data = blocks[shade == TRUE],
+        geom_rect(data = bands[shade == TRUE],
                   aes(xmin = rmin, xmax = rmax, ymin = -Inf, ymax = Inf),
                   fill = "grey92", colour = NA, alpha = 0.55,
-                  inherit.aes = FALSE) +
-        geom_hline(yintercept = -log10(args$fdr_threshold), linetype = "dashed",
-                   colour = "grey55", linewidth = 0.3)
-    if (n_capped > 0L) {
-        p <- p + geom_hline(yintercept = CAP, linetype = "dotted",
-                            colour = "grey60", linewidth = 0.3)
-    }
+                  inherit.aes = FALSE)
+    # No threshold line: every point drawn has already passed the threshold,
+    # so a line marking it would sit below the whole figure and explain
+    # nothing. There is no display cap either -- with at most top_n points per
+    # block the axis can simply run to the largest value.
     if (nrow(pts)) {
         # The strongest hit in each knowledgebase, not the strongest N overall.
         # Labelling the global top N puts every label inside whichever block is
-        # densest -- TFBSrm can contribute 800+ significant motifs -- where
-        # they collide with each other and with the points. One label per
-        # block spreads them across the axis, and it suits what this figure is
-        # for: which knowledgebases are enriched, with the full ranking left to
-        # the results table. Blocks are taken in order of their best FDR, so a
-        # platform publishing 30-odd sets still gets a readable number.
+        # densest, where they collide with each other and with the points. One
+        # label per block spreads them across the axis, and it suits what this
+        # figure is for: which knowledgebases are enriched. Blocks are taken in
+        # order of their best FDR, so a platform publishing 30-odd sets still
+        # gets a readable number.
         lab_kb <- pts[, .(best = max(neg_log10_fdr)), by = .kb
                       ][order(-best)][seq_len(min(N_LABEL, .N)), .kb]
         labs_dt <- pts[.kb %in% lab_kb][order(-neg_log10_fdr),
                                         head(.SD, 1L), by = .kb]
         p <- p +
-            geom_point(aes(size = log2_odds_ratio, colour = .kb), alpha = 0.6,
+            geom_point(aes(size = log2_odds_ratio, colour = .kb), alpha = 0.75,
                        stroke = 0) +
-            # Repelled upward off its own block's cloud. point.padding has to
+            # Repelled upward off its own block's points. point.padding has to
             # cover the largest points (6 mm) because ggrepel knows nothing of
             # point size; direction = "y" keeps a label over the block it
             # belongs to instead of drifting across a neighbour, and
@@ -218,15 +266,22 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     y_breaks <- pretty(c(0, y_top))
     y_breaks <- y_breaks[y_breaks >= 0 & y_breaks <= y_top]
     p <- p +
-        scale_colour_discrete(guide = "none") +
+        scale_colour_manual(values = kb_cols, guide = "none") +
         scale_size_continuous(range = c(1.5, 6),
                               name = expression(log[2] ~ "(odds ratio)")) +
         # Knowledgebase names are real axis labels, so they sit outside the
-        # panel where axis labels belong rather than being drawn into it.
-        scale_x_continuous(breaks = blocks$middle, labels = blocks$lab,
+        # panel where axis labels belong rather than being drawn into it, and
+        # are coloured to match their block's points.
+        scale_x_continuous(breaks = blocks$middle, labels = blocks$lab_md,
                            expand = expansion(mult = 0.02)) +
         scale_y_continuous(breaks = y_breaks, expand = expansion(mult = 0.02)) +
-        coord_cartesian(ylim = c(0, y_top)) +
+        # x limits come from the blocks, not from the drawn data. A block with
+        # no significant feature draws no point, and the band behind it is only
+        # drawn when its group is a shaded one -- so a trailing set with
+        # neither fell outside the data-driven panel range and lost its axis
+        # label entirely, silently dropping it from the figure.
+        coord_cartesian(xlim = c(min(bands$rmin), max(bands$rmax)),
+                        ylim = c(0, y_top)) +
         # Title only. Everything else about how to read this figure belongs in
         # its legend, in the README, not printed into the image.
         labs(x = NULL, y = expression(-log[10] ~ "(FDR)"), title = plot_title) +
@@ -234,14 +289,16 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
         theme(legend.position = "right",
               panel.grid.major.x = element_blank(),
               panel.grid.minor.x = element_blank(),
-              axis.text.x = element_text(angle = 40, hjust = 1, vjust = 1,
-                                         size = 9, colour = "grey20"),
+              axis.text.x = element_markdown(angle = 40, hjust = 1, vjust = 1,
+                                             size = 9),
               axis.ticks.x = element_line(colour = "grey70", linewidth = 0.3))
 
     ggsave(path, plot = p, width = 9.5, height = 6.6, dpi = 300, bg = "white",
            limitsize = FALSE)
-    message(sprintf("Wrote %s (%d points, %d knowledgebase blocks, %d capped)",
-                    basename(path), nrow(pts), nrow(blocks), n_capped))
+    message(sprintf(paste("Wrote %s (%d blocks in %d groups; %d enriched at",
+                          "FDR < %g, %d drawn at top %d per knowledgebase)"),
+                    basename(path), nrow(blocks), uniqueN(blocks$grp), n_sig,
+                    args$fdr_threshold, nrow(pts), args$top_n))
 }
 
 plot_title <- sprintf("%s: %s", args$assoc, spec$title)

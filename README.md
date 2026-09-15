@@ -650,10 +650,14 @@ four, in two geometries:
 | `<assoc>_enrichment_traits.jpg` | dot plot |
 
 **The two feature plots** follow the shape of knowYourCG's
-`KYCG_plotEnrichAll`: every tested knowledgebase gets a coloured block along
-the x axis, labelled underneath with the number of features tested in it, and
-its enriched features sit directly above it. The y axis is -log10(FDR), point
-size is the log2 odds ratio, and the strongest hits are labelled.
+`KYCG_plotEnrichAll`: every tested knowledgebase occupies a stretch of the x
+axis, labelled underneath with the number of features tested in it, and its
+enriched features sit directly above it. The y axis is -log10(FDR), point size
+is the log2 odds ratio, and the strongest hit in each knowledgebase is
+labelled. Related knowledgebases are adjacent, grouped by what they describe,
+with alternating background bands marking the groups; the grouping is set by
+`KB_GROUPS` at the top of `scripts/plot_enrichment.R`, and a set not listed
+there is appended alphabetically rather than dropped.
 
 That geometry is chosen for a statistical reason, not a visual one. Because
 the FDR is computed within each knowledgebase, q-values from a 2-feature set
@@ -687,23 +691,28 @@ Four deliberate choices in how all of these read:
    solid and hollow mean.
 2. The significance axis is -log10(FDR) throughout, following knowYourCG,
    whose `KYCG_plotDot` and `KYCG_plotBar` both default to `-log10(FDR)`. A
-   dashed reference line marks `enrichment.threshold`, so the cutoff sits on
-   the axis. A strong enrichment over a large feature can push the FDR below
+   dashed reference line marks `enrichment.threshold` on the dot plots, so the
+   cutoff sits on the axis. The feature plots carry no such line: they draw
+   only features that already passed the threshold, so a line marking it would
+   sit below everything in the figure and say nothing. A strong enrichment over a large feature can push the FDR below
    the smallest representable double, so `enrich_features.R` and
    `enrich_traits.R` emit exact `neg_log10_p` and `neg_log10_fdr` columns
    computed on the log scale and the plots use those. `gometh` returns a
    linear FDR only, so the pathways plot falls back to a labelled cap, and if
    an axis does collapse it switches to fold enrichment, which the axis title
    states.
-3. The feature plots cap the y axis at -log10(FDR) = 40, marked with a dotted
-   line, with capped points drawn just above it. Without the cap a single
-   10^-800 result compresses everything else onto the axis floor. The number
-   capped is reported on stderr by the rule, so it is in the run log.
+3. The feature plots draw only the strongest `enrichment.plot_top_n` features
+   per knowledgebase, not every significant one. A real run can leave several
+   hundred significant TF motifs, which arrive as a solid block of overplotted
+   points that hides every smaller knowledgebase; the full ranking is in the
+   table. The y axis is not capped, so a very strong result stretches it and
+   the weaker blocks sit low -- that is the honest picture, and with at most
+   `plot_top_n` points per block they stay legible.
 4. Every figure carries a title and nothing else -- no subtitle, no caption.
    Counts and interpretation belong in the legend, below, not printed into the
    image. The rule logs the counts that a legend needs (how many features were
-   tested, how many reached the threshold, how many were capped) so they can
-   be read from the run log without opening the table.
+   enriched, how many were drawn, how many blocks and groups) so they can be
+   read from the run log without opening the table.
 5. The GO/KEGG plot is one file with two panels, top `plot_top_n` *within each
    collection*, each panel on its own x axis -- the same reasoning as the
    feature blocks. `enrich_pathways.R` calls `gometh` once per collection and
@@ -721,26 +730,25 @@ These are written to be usable as legends directly; replace `<assoc>` and the
 threshold with the values from your run.
 
 **`<assoc>_enrichment_features.jpg`** — KYCG feature enrichment for
-`<assoc>`. Each block along the x axis is one tested knowledgebase, labelled
-with the number of features tested in it and delimited by alternating
-shading; the features of a knowledgebase are spaced across its block. The y
-axis is -log10(FDR), point size is the log2 odds ratio, and colour
-distinguishes knowledgebases only. Only features that are enriched
-(fold enrichment > 1) and pass the FDR threshold are drawn, because the
-hypergeometric test is one-sided; a knowledgebase with no such feature keeps
-its block and shows no points, meaning it was tested and nothing was found.
-The dashed horizontal line is the FDR threshold (`enrichment.threshold`,
-0.05 by default). The dotted line is the display cap at -log10(FDR) = 40;
-points beyond it are drawn just above the cap, so their heights are not to
-scale. The strongest feature in each knowledgebase is labelled, up to 14
-knowledgebases ordered by best FDR -- not the strongest features overall,
-which in a run with many significant transcription-factor motifs would all
-fall in one block. **FDR is adjusted within each knowledgebase, not across
-them**, so heights are comparable within a block but not between blocks: a
-motif from a 1,188-feature set needs stronger evidence than a chromatin state
-from an 18-feature set to reach the same FDR. The full ranking, the
-contingency counts and the family size each FDR was computed in
-(`n_tested_in_kb`) are in `<assoc>_enrichment_features.tsv`.
+`<assoc>`. Each position along the x axis is one tested knowledgebase, labelled
+below with the number of features tested in it; the label is coloured to match
+its points. The y axis is -log10(FDR) and point size is the log2 odds ratio.
+Knowledgebases carrying related information are placed next to each other --
+the two chromatin-state models beside the histone marks they are called from,
+transcription factor and CTCF binding together, the two repeat resolutions
+together -- and the alternating grey bands mark those groups. Only features
+that are enriched (fold enrichment > 1) and pass the FDR threshold are shown,
+because the hypergeometric test is one-sided, and only the strongest
+`enrichment.plot_top_n` of them per knowledgebase; a knowledgebase with no
+such feature still appears on the axis with no points above it, meaning it was
+tested and nothing was found. The strongest feature in each knowledgebase is
+labelled, for up to 14 knowledgebases ordered by best FDR. **FDR is adjusted
+within each knowledgebase, not across them**, so heights are comparable within
+a knowledgebase but not between them: a motif from a 1,188-feature set needs
+stronger evidence than a chromatin state from an 18-feature set to reach the
+same FDR. The full ranking, the contingency counts and the family size each
+FDR was computed in (`n_tested_in_kb`) are in
+`<assoc>_enrichment_features.tsv`.
 
 **`<assoc>_enrichment_features_qc.jpg`** — post-hoc QC checks for `<assoc>`,
 drawn exactly as above but restricted to the design and QC knowledgebases
