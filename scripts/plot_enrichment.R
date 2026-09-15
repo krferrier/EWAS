@@ -181,17 +181,28 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
                               tail(as.character(.kb), -1), 1, 0))]
     dt[, .xpos := cumsum(.inc + .step)]
 
-    # Only enriched, significant features are drawn -- the test is one-sided
-    # (phyper lower.tail = FALSE), so a fold below 1 carries no evidence -- and
-    # only the strongest args$top_n of them per knowledgebase. Drawing every
-    # significant feature makes this figure unreadable as soon as one set is
-    # large: a real run can leave 800+ significant TF motifs, which arrive as a
-    # solid block of overplotted points that hides the smaller sets entirely.
-    # The full ranking is in the results table.
-    pts <- dt[fold_enrichment > 1 & fdr < args$fdr_threshold]
-    n_sig <- nrow(pts)
-    pts <- pts[order(-neg_log10_fdr)][, head(.SD, args$top_n), by = .kb]
+    # Enriched features only -- the test is one-sided (phyper lower.tail =
+    # FALSE), so a fold below 1 carries no evidence here -- and only the
+    # strongest args$top_n of them per knowledgebase. Drawing every feature
+    # makes this figure unreadable as soon as one set is large: a real run can
+    # leave 800+ significant TF motifs, which arrive as a solid block of
+    # overplotted points that hides the smaller sets entirely. The full ranking
+    # is in the results table.
+    #
+    # Non-significant features are kept and drawn hollow, as in the dot plots.
+    # Showing only the significant ones made the solid/hollow distinction
+    # vacuous -- every point would be solid -- and left no way to tell a
+    # knowledgebase whose best result just missed the threshold from one with
+    # nothing to say, which matters most on the QC figure, where the whole
+    # question is whether anything reached significance.
+    enr <- dt[fold_enrichment > 1]
+    n_sig <- enr[fdr < args$fdr_threshold, .N]
+    pts <- enr[order(-neg_log10_fdr)][, head(.SD, args$top_n), by = .kb]
     pts[, .y := neg_log10_fdr]
+    # A factor carrying BOTH levels, so the shape guide always explains solid
+    # against hollow even when every drawn point falls on one side.
+    pts[, .signif := factor(!is.na(fdr) & fdr < args$fdr_threshold,
+                            levels = c(TRUE, FALSE))]
 
     blocks <- dt[, .(beg = min(.xpos), middle = mean(.xpos), end = max(.xpos),
                      n = .N), by = .kb]
@@ -242,13 +253,32 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
         # figure is for: which knowledgebases are enriched. Blocks are taken in
         # order of their best FDR, so a platform publishing 30-odd sets still
         # gets a readable number.
-        lab_kb <- pts[, .(best = max(neg_log10_fdr)), by = .kb
-                      ][order(-best)][seq_len(min(N_LABEL, .N)), .kb]
-        labs_dt <- pts[.kb %in% lab_kb][order(-neg_log10_fdr),
-                                        head(.SD, 1L), by = .kb]
+        # Only significant hits are labelled: naming a knowledgebase's best
+        # near-miss would read as a finding. Guarded, because a run where
+        # nothing reached the threshold leaves this empty and max() on an
+        # empty vector warns and returns -Inf.
+        sig_pts <- pts[.signif == "TRUE"]
+        labs_dt <- if (nrow(sig_pts)) {
+            lab_kb <- sig_pts[, .(best = max(neg_log10_fdr)), by = .kb
+                              ][order(-best)][seq_len(min(N_LABEL, .N)), .kb]
+            sig_pts[.kb %in% lab_kb][order(-neg_log10_fdr),
+                                     head(.SD, 1L), by = .kb]
+        } else {
+            sig_pts[0]
+        }
+        # Both levels always present in the key, with explicit glyphs: size is
+        # mapped to the data, so a level with no drawn point has nothing to
+        # draw from and would otherwise render as a bare label.
+        key_layer <- geom_point(
+            data = data.table(.xpos = pts$.xpos[1], .y = pts$.y[1],
+                              .signif = factor(c(TRUE, FALSE),
+                                               levels = c(TRUE, FALSE))),
+            aes(x = .xpos, y = .y, shape = .signif),
+            size = 0, alpha = 0, inherit.aes = FALSE)
         p <- p +
-            geom_point(aes(size = log2_odds_ratio, colour = .kb), alpha = 0.75,
-                       stroke = 0) +
+            geom_point(aes(size = log2_odds_ratio, colour = .kb,
+                           shape = .signif), alpha = 0.75) +
+            key_layer +
             # Repelled upward off its own block's points. point.padding has to
             # cover the largest points (6 mm) because ggrepel knows nothing of
             # point size; direction = "y" keeps a label over the block it
@@ -267,8 +297,18 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     y_breaks <- y_breaks[y_breaks >= 0 & y_breaks <= y_top]
     p <- p +
         scale_colour_manual(values = kb_cols, guide = "none") +
+        scale_shape_manual(
+            values = c(`TRUE` = 19, `FALSE` = 1),
+            breaks = c("TRUE", "FALSE"), limits = c("TRUE", "FALSE"),
+            labels = c(sprintf("FDR < %g", args$fdr_threshold),
+                       sprintf("FDR >= %g", args$fdr_threshold)),
+            drop = FALSE, name = NULL) +
         scale_size_continuous(range = c(1.5, 6),
                               name = expression(log[2] ~ "(odds ratio)")) +
+        # Neutral key glyphs: colour already encodes the knowledgebase, so a
+        # coloured shape key would read as a fourteenth group.
+        guides(shape = guide_legend(
+            override.aes = list(size = 2.5, alpha = 1, colour = "grey25"))) +
         # Knowledgebase names are real axis labels, so they sit outside the
         # panel where axis labels belong rather than being drawn into it, and
         # are coloured to match their block's points.
@@ -284,7 +324,8 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
                         ylim = c(0, y_top)) +
         # Title only. Everything else about how to read this figure belongs in
         # its legend, in the README, not printed into the image.
-        labs(x = NULL, y = expression(-log[10] ~ "(FDR)"), title = plot_title) +
+        labs(x = "Knowledgebase (features tested)",
+             y = expression(-log[10] ~ "(FDR)"), title = plot_title) +
         theme_bw(base_size = 13) +
         theme(legend.position = "right",
               panel.grid.major.x = element_blank(),
@@ -295,10 +336,12 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
 
     ggsave(path, plot = p, width = 9.5, height = 6.6, dpi = 300, bg = "white",
            limitsize = FALSE)
-    message(sprintf(paste("Wrote %s (%d blocks in %d groups; %d enriched at",
-                          "FDR < %g, %d drawn at top %d per knowledgebase)"),
-                    basename(path), nrow(blocks), uniqueN(blocks$grp), n_sig,
-                    args$fdr_threshold, nrow(pts), args$top_n))
+    message(sprintf(paste("Wrote %s (%d blocks in %d groups; %d enriched",
+                          "features, %d of them at FDR < %g; %d drawn at top",
+                          "%d per knowledgebase)"),
+                    basename(path), nrow(blocks), uniqueN(blocks$grp),
+                    nrow(enr), n_sig, args$fdr_threshold, nrow(pts),
+                    args$top_n))
 }
 
 plot_title <- sprintf("%s: %s", args$assoc, spec$title)

@@ -682,8 +682,8 @@ hollow ones do not.
 
 Four deliberate choices in how all of these read:
 
-1. Non-significant results are shown rather than dropped in the dot plots, so
-   a plot with no solid points tells you directly that nothing was significant
+1. Non-significant results are shown rather than dropped, in every plot, so
+   a figure with no solid points tells you directly that nothing was significant
    rather than by an empty figure. Seeing that the best hit was p = 0.2 is more
    useful than an empty figure. The shape legend always lists both
    `FDR < threshold` and `FDR >= threshold`, even when every plotted result
@@ -692,17 +692,17 @@ Four deliberate choices in how all of these read:
 2. The significance axis is -log10(FDR) throughout, following knowYourCG,
    whose `KYCG_plotDot` and `KYCG_plotBar` both default to `-log10(FDR)`. A
    dashed reference line marks `enrichment.threshold` on the dot plots, so the
-   cutoff sits on the axis. The feature plots carry no such line: they draw
-   only features that already passed the threshold, so a line marking it would
-   sit below everything in the figure and say nothing. A strong enrichment over a large feature can push the FDR below
+   cutoff sits on the axis. The feature plots carry no such line: solid versus
+   hollow points already carry the same information there, per knowledgebase,
+   and a single line cannot, since each knowledgebase is corrected separately. A strong enrichment over a large feature can push the FDR below
    the smallest representable double, so `enrich_features.R` and
    `enrich_traits.R` emit exact `neg_log10_p` and `neg_log10_fdr` columns
    computed on the log scale and the plots use those. `gometh` returns a
    linear FDR only, so the pathways plot falls back to a labelled cap, and if
    an axis does collapse it switches to fold enrichment, which the axis title
    states.
-3. The feature plots draw only the strongest `enrichment.plot_top_n` features
-   per knowledgebase, not every significant one. A real run can leave several
+3. The feature plots draw only the strongest `enrichment.plot_top_n` enriched
+   features per knowledgebase, not every one. A real run can leave several
    hundred significant TF motifs, which arrive as a solid block of overplotted
    points that hides every smaller knowledgebase; the full ranking is in the
    table. The y axis is not capped, so a very strong result stretches it and
@@ -736,13 +736,16 @@ its points. The y axis is -log10(FDR) and point size is the log2 odds ratio.
 Knowledgebases carrying related information are placed next to each other --
 the two chromatin-state models beside the histone marks they are called from,
 transcription factor and CTCF binding together, the two repeat resolutions
-together -- and the alternating grey bands mark those groups. Only features
-that are enriched (fold enrichment > 1) and pass the FDR threshold are shown,
-because the hypergeometric test is one-sided, and only the strongest
-`enrichment.plot_top_n` of them per knowledgebase; a knowledgebase with no
-such feature still appears on the axis with no points above it, meaning it was
-tested and nothing was found. The strongest feature in each knowledgebase is
-labelled, for up to 14 knowledgebases ordered by best FDR. **FDR is adjusted
+together -- and the alternating grey bands mark those groups. Solid points pass
+the FDR threshold and hollow points do not. Only features that are enriched
+(fold enrichment > 1) are shown, because the hypergeometric test is one-sided,
+and only the strongest `enrichment.plot_top_n` of them per knowledgebase; a
+knowledgebase with no enriched feature at all still appears on the axis with
+nothing above it. Non-significant features are kept rather than dropped so
+that a knowledgebase whose best result just missed the threshold can be told
+from one with nothing to say. Only significant features are labelled -- naming
+a near-miss would read as a finding -- for up to 14 knowledgebases ordered by
+best FDR. **FDR is adjusted
 within each knowledgebase, not across them**, so heights are comparable within
 a knowledgebase but not between them: a motif from a 1,188-feature set needs
 stronger evidence than a chromatin state from an 18-feature set to reach the
