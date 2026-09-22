@@ -89,6 +89,8 @@ Most CpGs are null, so lambda sits near 1. Planted on top of that:
   comb-p to find, plus 10 correlated regions with no effect as a negative
   control it should not call;
 * X-inactivation in females, so chrX behaves as it does in real data.
+* a few CpGs on unplaced/alt contigs and a few with no hg38 position, as real
+  EPIC data has, so sorting and filtering are exercised on every run.
 
 `data/test_truth.tsv` lists every planted CpG with its true effect, so a run can
 be checked against what it should have found rather than just for whether it

@@ -15,6 +15,8 @@ workflow has something meaningful to do:
   negative control comb-p should not call).
 * Enrichment: most single-CpG hits are drawn from ChromHMM active-TSS (TssA)
   probes, so KYCG enrichment has a real, known signal to find.
+* Edge cases real input contains: CpGs on unplaced/alt contigs and CpGs with
+  no position in the manifest, so sorting and filtering are exercised.
 * Plots: CpGs on every chromosome including X and Y, with realistic X
   inactivation in females; effects are moderate (roughly p 1e-4 to 1e-20),
   so nothing underflows and the figures look like a real study.
@@ -59,6 +61,11 @@ def parse_args():
                     help="randomly sampled CpGs genome-wide")
     ap.add_argument("--min-chrY", type=int, default=20,
                     help="top up chrY so the Y block is visible on the Manhattan plot")
+    ap.add_argument("--n-alt-contig", type=int, default=10,
+                    help="CpGs on unplaced/alt contigs (chrUn_*, *_random, *_alt), as real "
+                         "EPIC data has; they must survive sorting and plotting")
+    ap.add_argument("--n-no-position", type=int, default=10,
+                    help="CpGs with no hg38 position in the manifest, as real EPIC data has")
     ap.add_argument("--n-dmr", type=int, default=10, help="regions with a planted effect")
     ap.add_argument("--n-null-regions", type=int, default=10, help="correlated regions, no effect")
     ap.add_argument("--n-hits", type=int, default=60, help="single CpGs with a planted effect")
@@ -105,8 +112,9 @@ def main():
     # ---- probes -----------------------------------------------------------
     man = pd.read_csv(a.manifest, sep="\t", usecols=["CpG_chrm", "CpG_beg", "probeID"],
                       low_memory=False)
-    man = man[man.probeID.str.startswith("cg") & man.CpG_chrm.notna()]
-    man = man.drop_duplicates("probeID")
+    man = man[man.probeID.str.startswith("cg")].drop_duplicates("probeID")
+    no_pos = man[man.CpG_chrm.isna() | man.CpG_beg.isna()]
+    man = man.drop(no_pos.index)
     st = chromhmm_states(a.kycg_dir, a.ordering)
     man["chromhmm"] = man.probeID.map(st) if st is not None else "NA"
     man["chromhmm"] = man.chromhmm.fillna("NA")
@@ -127,7 +135,14 @@ def main():
     if n_y < a.min_chrY:
         extra = rest[(rest.CpG_chrm == "chrY") & ~rest.probeID.isin(bg.probeID)]
         bg = pd.concat([bg, extra.sample(min(len(extra), a.min_chrY - n_y), random_state=a.seed)])
-    bg = bg.assign(role="background", region="")
+    # Edge cases that real input contains and that have broken the workflow
+    # before: contigs outside chr1-22/X/Y/M (sort order) and CpGs with no
+    # position at all. Topped up to a fixed count so every test set has them.
+    alt_pool = rest[~rest.CpG_chrm.isin(STD_CHROMS + ["chrM"]) & ~rest.probeID.isin(bg.probeID)]
+    n_alt = (~bg.CpG_chrm.isin(STD_CHROMS + ["chrM"])).sum()
+    extra = [alt_pool.sample(max(0, min(len(alt_pool), a.n_alt_contig - n_alt)), random_state=a.seed),
+             no_pos.sample(min(len(no_pos), a.n_no_position), random_state=a.seed)]
+    bg = pd.concat([bg] + extra).assign(role="background", region="")
 
     # Single-CpG hits, on standard chromosomes, mostly from active TSSs.
     pool = bg[bg.CpG_chrm.isin(STD_CHROMS[:23])]
@@ -215,7 +230,8 @@ def main():
           f"{(cpg.role == 'background').sum()} background, {hit.sum()} single hits "
           f"({n_tssa} TssA), {a.n_dmr} DMRs + {a.n_null_regions} null regions "
           f"({cpg.role.isin(['dmr', 'null_region']).sum()} CpGs) | chrX {onX.sum()}, "
-          f"chrY {onY.sum()}, other {(~cpg.CpG_chrm.isin(STD_CHROMS)).sum()} | "
+          f"chrY {onY.sum()}, other contigs {(cpg.CpG_chrm.notna() & ~cpg.CpG_chrm.isin(STD_CHROMS)).sum()}, "
+          f"no position {cpg.CpG_chrm.isna().sum()} | "
           f"NA {np.isnan(M).mean():.2%}")
 
 

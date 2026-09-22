@@ -45,7 +45,6 @@ res <- fread(results)
 if(stratified=="no" | stratified == "False"){
     res <- res  %>% 
             dplyr::select(CpG_chrm,CpG_beg,CpG_end, bacon.pval, cpgid) %>%
-            arrange(CpG_chrm, CpG_beg)  %>% 
             dplyr::rename("#chrom" = "CpG_chrm",
                           "start" = "CpG_beg",
                           "end" = "CpG_end",
@@ -53,13 +52,28 @@ if(stratified=="no" | stratified == "False"){
 } else{
     res <- res  %>% 
         dplyr::select(CpG_chrm,CpG_beg,CpG_end, "P-value", MarkerName)  %>%
-        arrange(CpG_chrm, CpG_beg)  %>% 
         dplyr::rename("#chrom" = "CpG_chrm",
                       "start" = "CpG_beg",
                       "end" = "CpG_end",
                       "pvals" = "P-value")
                       
 }
+
+# comb-p needs every CpG to have a position, and the file sorted by chromosome
+# in plain character (C locale) order -- it stops with "chromosomes must be
+# sorted as characters" otherwise. dplyr::arrange() is not safe for this: before
+# dplyr 1.1 it sorted in the system locale, which puts "chr1_KI270711v1_random"
+# before "chr10", and the DMR environment carries such a dplyr. order(method =
+# "radix") always sorts in C order, whatever the locale or package versions.
+# Plain data.frame: data.table's [ ] treats i and j differently from base R.
+res <- as.data.frame(res)
+chrom_col <- names(res)[1]
+no_pos <- is.na(res[[chrom_col]]) | res[[chrom_col]] %in% c("", "NA") | is.na(res$start)
+if (any(no_pos)) {
+    message(sprintf("make_bed: dropped %d CpG(s) with no genomic position", sum(no_pos)))
+    res <- res[!no_pos, ]
+}
+res <- res[order(res[[chrom_col]], res$start, method = "radix"), ]
 
 # Export BED file
 file_name <- paste0(out_dir, "/", assoc, "_ewas_annotated_results.bed")
