@@ -565,13 +565,21 @@ class ConfigWizard(object):
         """
         return self.kycg_dir.joinpath("knowledgebases.tsv")
 
+    # Last zhou-lab/kycg commit that still carries data/knowledgebases.tsv.
+    # Upstream deleted the file in abb75cea (2026-09-20) and now compiles the
+    # definitions into the kycg binary (src/kbinfo.h), so there is no longer a
+    # TSV on any branch or tag -- v0.5 and v0.6 postdate the removal. The URL
+    # used to track `main`, which is how a routine upstream refactor broke the
+    # fetch; a commit SHA cannot move. It ships with the kycg CLI rather than
+    # the annotation release, so it is independent of zhou_release. Covers
+    # every knowledgebase this workflow tests; bump deliberately, if ever.
+    KYCG_REGISTRY_COMMIT = "d6df6f36b81234e23c176c72a2fcc287471ea13e"
+
     @property
     def kycg_registry_url(self) -> str:
-        # Ships with the kycg CLI rather than the annotation release, so this
-        # one is not pinned by zhou_release.
         return (
-            "https://raw.githubusercontent.com/zhou-lab/kycg/main/"
-            "data/knowledgebases.tsv"
+            "https://raw.githubusercontent.com/zhou-lab/kycg/"
+            f"{self.KYCG_REGISTRY_COMMIT}/data/knowledgebases.tsv"
         )
 
     @property

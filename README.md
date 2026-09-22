@@ -472,7 +472,10 @@ be added by name. Two places to look:
   array platforms, with which platforms publish each, its role, upstream
   source and citation.
 * the cached registry, `<cache>/zhou/<platform>/<release>/KYCG/knowledgebases.tsv`,
-  which is Zhou's own provenance for every set -- see above.
+  which is Zhou's own provenance for every set -- see above. Upstream removed
+  this file from `zhou-lab/kycg` in September 2026 (the definitions are now
+  compiled into the `kycg` tool, where `kycg info` shows them), so the workflow
+  fetches it from the last commit that still has it, `d6df6f36`.
 
 
 The FDR is computed within each knowledgebase. Some knowledge bases have only one or
