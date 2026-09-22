@@ -456,7 +456,20 @@ if (!is.null(spec$group) && spec$group %in% names(top)) {
     top[, .label := as.character(get(spec$label))]
     top[, .group := NA_character_]
 }
+# A missing name falls back to the ID, and any label still repeated gets its
+# ID appended: y positions are factor levels, and a repeated level is an error
+# (and would otherwise put two results on one row).
+id_col <- intersect(c("term_id", "feature", "trait"), names(top))[1]
+if (!is.na(id_col)) {
+    ids <- as.character(top[[id_col]])
+    blank <- is.na(top$.label) | !nzchar(trimws(top$.label)) | top$.label == "NA"
+    top[blank, .label := ids[blank]]
+    dup <- duplicated(top$.label) | duplicated(top$.label, fromLast = TRUE)
+    top[dup, .label := paste0(.label, " (", ids[dup], ")")]
+}
+top[, .label := make.unique(.label, sep = " ")]
 top[, .wrapped := wrap_labels(.label, args$label_width)]
+top[, .wrapped := make.unique(as.character(.wrapped), sep = " ")]
 top[, .wrapped := factor(.wrapped, levels = .wrapped[order(.logp)])]
 
 n_sig <- sum(top$.signif == "TRUE")

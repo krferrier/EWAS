@@ -88,6 +88,13 @@ run_collection <- function(collection) {
             array.type = array_type,
             plot.bias = FALSE)
         res <- as.data.table(res, keep.rownames = "term_id")
+        # gometh calls the name column TERM for GO but Description for KEGG.
+        # Rename here, per collection: after rbindlist(fill = TRUE) the table
+        # already has a TERM column (from GO), so a rename there would be
+        # skipped and every KEGG name lost with the Description column.
+        if (!"TERM" %in% names(res) && "Description" %in% names(res)) {
+            setnames(res, "Description", "TERM")
+        }
         res[, collection := collection]
         res
     }, error = function(e) {
@@ -105,9 +112,6 @@ if (length(collected) == 0L) {
 all <- rbindlist(collected, fill = TRUE)
 # gometh names differ a little between collections
 if (!"ONTOLOGY" %in% names(all)) all[, ONTOLOGY := NA_character_]
-if (!"TERM" %in% names(all) && "Description" %in% names(all)) {
-    setnames(all, "Description", "TERM")
-}
 setnames(all,
          c("TERM", "ONTOLOGY", "N", "DE", "P.DE", "FDR"),
          c("term", "ontology", "n_genes_in_term", "n_significant_genes",
