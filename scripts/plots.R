@@ -167,7 +167,13 @@ ggplot(ewas, aes(observed= Pvalue)) +
   stat_qqplot() +
   geom_abline(intercept = 0, slope = 1, color = "red") +
   theme_bw(base_size = 16) +
-  annotate("text", x=1, y=25, label = lambda_label, parse=T, size = 6)+
+  # Top-left corner of the panel, whatever the data range. -Inf/Inf place the
+  # label at the panel edge and take no part in setting the axis limits, so it
+  # neither drifts into the points nor stretches the axes; the old fixed y = 25
+  # pushed the y axis up to 25 on a run with no strong hits. hjust/vjust set
+  # the inset from the corner.
+  annotate("text", x = -Inf, y = Inf, label = lambda_label, parse = TRUE,
+           size = 6, hjust = -0.25, vjust = 1.4) +
   labs(y= expression(Observed ~ -log[10]("P-value")),
       x = expression(Expected ~ -log[10]("P-value"))) -> qq.plot
 
