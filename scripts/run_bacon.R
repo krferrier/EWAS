@@ -6,13 +6,26 @@ suppressPackageStartupMessages({
        library(dplyr)
        library(data.table)
        library(bacon)
-       library(QCEWAS)
        library(qqman)
        library(ggplot2)
        library(reshape2)
        library(tibble)
        library(cowplot)
 })
+
+# Genomic inflation factor (lambda): the median observed chi-square statistic
+# over its expected value under the null. Identical to QCEWAS::P_lambda
+# (QCEWAS 1.2-3, copied from its source), defined here so the environment does
+# not depend on QCEWAS: conda-forge's r-qcewas has no build newer than R 4.3,
+# while bioconductor-bacon >= 1.32 requires R >= 4.4, so the two cannot be
+# installed together. This was the only QCEWAS function the workflow used.
+p_lambda <- function(p) {
+    p <- p[!is.na(p)]
+    if (length(p) < 2L) {
+        stop("'p' does not contain sufficient non-missing values to calculate lambda")
+    }
+    median(qchisq(p, df = 1, lower.tail = FALSE)) / qchisq(0.5, 1)
+}
 
 # ggplot2 versions of the BACON diagnostic plots (ggtraces, ggposteriors,
 # ggfit). These are additions, not overrides -- they were never upstreamed.
@@ -92,9 +105,9 @@ ewas$bacon.es <- bacon::es(bc)
 # Extract bacon-adjusted standard error
 ewas$bacon.se <- bacon::se(bc)
 # Estimate the original p-value lambda
-ewas$lambda <- QCEWAS::P_lambda(ewas$p.value)
+ewas$lambda <- p_lambda(ewas$p.value)
 # Estimate the bacon-adjusted p-value lambda
-ewas$b.lambda <- QCEWAS::P_lambda(ewas$bacon.pval)
+ewas$b.lambda <- p_lambda(ewas$bacon.pval)
 
 # Export bacon-adjusted results
 fwrite(ewas, file=paste0(out_dir, "/", filename, "_ewas_bacon_results", out_type))

@@ -306,7 +306,7 @@ METAL columns.
 | `cpgid` *(unstratified)* | EWAS | Probe identifier. |
 | `MarkerName` *(stratified)* | METAL | Probe identifier. |
 | `bacon.es`, `bacon.se`, `bacon.statistic`, `bacon.pval` *(unstratified)* | BACON | Bias- and inflation-adjusted effect size, standard error, test statistic and p-value. |
-| `lambda`, `b.lambda` *(unstratified)* | QCEWAS | Genomic inflation before and after BACON adjustment. |
+| `lambda`, `b.lambda` *(unstratified)* | `run_bacon.R` | Genomic inflation before and after BACON adjustment: median observed chi-square over its null expectation, computed as `QCEWAS::P_lambda` does. |
 | `Effect`, `StdErr`, `P-value`, `Direction` *(stratified)* | METAL | Inverse-variance weighted meta-analysis across strata. `Direction` gives one character per stratum. |
 | `CpG_chrm`, `CpG_beg`, `CpG_end` | Zhou manifest | Probe coordinates on `genome_build`, 0-based half-open. |
 | `probe_strand` | Zhou manifest | Strand the probe interrogates. |

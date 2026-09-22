@@ -4,8 +4,22 @@ suppressPackageStartupMessages({
   library(data.table)
   library(ggplot2)
   library(cowplot)
-  library(QCEWAS)
 })
+
+# Genomic inflation factor (lambda): the median observed chi-square statistic
+# over its expected value under the null. Identical to QCEWAS::P_lambda
+# (QCEWAS 1.2-3, copied from its source), defined here so the environment does
+# not depend on QCEWAS: conda-forge's r-qcewas has no build newer than R 4.3,
+# while bioconductor-bacon >= 1.32 requires R >= 4.4, so the two cannot be
+# installed together. This was the only QCEWAS function the workflow used.
+p_lambda <- function(p) {
+    p <- p[!is.na(p)]
+    if (length(p) < 2L) {
+        stop("'p' does not contain sufficient non-missing values to calculate lambda")
+    }
+    median(qchisq(p, df = 1, lower.tail = FALSE)) / qchisq(0.5, 1)
+}
+
 
 # Define command line arguments
 parser <- argparse::ArgumentParser(description="Script for plotting ewas results")
@@ -124,7 +138,7 @@ stat_qqplot <- function(mapping = NULL, data = NULL, geom = "point",
   )
 }
 
-lambda <- QCEWAS::P_lambda(ewas$Pvalue)
+lambda <- p_lambda(ewas$Pvalue)
 lambda_label <- paste0("lambda==", round(lambda, digits = 2))
 
 ggplot(ewas, aes(observed= Pvalue)) +

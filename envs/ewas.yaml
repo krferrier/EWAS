@@ -21,7 +21,9 @@ dependencies:
   - bioconductor-biocparallel
   - r-argparse
   - r-qqman
-  - r-qcewas
+  # r-qcewas removed: its only use was P_lambda(), now defined in
+  # scripts/run_bacon.R and scripts/plots.R. conda-forge has no r-qcewas
+  # build for R >= 4.4, which bioconductor-bacon >= 1.32 requires.
   - r-caret
   - r-rmarkdown
   - r-shiny
