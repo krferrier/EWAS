@@ -13,10 +13,15 @@ rule run_combined_ewas:
         o_type = CW.out_type
     output: 
         CW.raw_results
+    log:
+        CW.log_path("run_combined_ewas")
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         export R_PROGRESSR_ENABLE=TRUE 
         Rscript {input.script} \
         --pheno {input.pheno_file} \
@@ -42,10 +47,15 @@ rule run_bacon:
     output: 
         CW.bacon_results,
         CW.bacon_plot_files()
+    log:
+        CW.log_path("run_bacon")
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.in_file} \
         --out-dir {params.o_dir} \

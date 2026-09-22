@@ -41,7 +41,7 @@ rule run_ewas_group:
     output:
         ewas_results = CW.group_ewas_results("{group}")
     log:
-        "log/{group}_ewas.log"
+        CW.log_path("run_ewas_group", "{group}")
     conda:
         "../envs/ewas.yaml"
     shell:
@@ -75,10 +75,15 @@ rule run_bacon_group:
         plot_post = CW.group_bacon_plot("{group}", "posteriors"),
         plot_fit = CW.group_bacon_plot("{group}", "fit"),
         plot_qqs = CW.group_bacon_plot("{group}", "qqs")
+    log:
+        CW.log_path("run_bacon_group", "{group}")
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.in_file} \
         --out-dir {params.o_dir} \
@@ -134,5 +139,7 @@ rule run_metal:
         script = rules.make_metal_script.output.metal_script
     output:
         CW.meta_analysis_results
+    log:
+        CW.log_path("run_metal")
     shell: 
-        "{input.metal} {input.script}"
+        "{input.metal} {input.script} > {log} 2>&1"

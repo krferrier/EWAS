@@ -244,6 +244,22 @@ class ConfigWizard(object):
     def _out(self, *parts: Union[str, Path]) -> Path:
         return self.out_dir.joinpath(*map(lambda p: str(p), parts))
 
+    def log_path(self, rule: str, wildcard: Optional[str] = None) -> str:
+        """Log file for one rule: <out_directory>/logs/<rule>.log.
+
+        Rules with a wildcard get one file per value, logs/<rule>/<value>.log,
+        so parallel jobs never write to the same file. Pass the wildcard
+        pattern itself, e.g. log_path("run_bacon_group", "{group}") -- Snakemake
+        requires a log to carry the same wildcards as the rule's outputs.
+
+        Kept under out_directory rather than the repository so each results
+        directory holds the logs of the run that produced it, next to
+        provenance/.
+        """
+        if wildcard is None:
+            return str(self._out("logs", f"{rule}.log"))
+        return str(self._out("logs", rule, f"{wildcard}.log"))
+
     # ---------- Group-specific paths ----------
     def group_dir(self, group: str) -> Path:
         """Directory containing outputs for one stratum."""

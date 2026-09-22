@@ -46,10 +46,15 @@ rule enrich_features:
         min_set = CW.enrich_min_set_size,
         sets = ",".join(CW.kycg_tested_sets),
         qc_sets = ",".join(CW.kycg_qc_sets) or "NONE",
+    log:
+        CW.log_path("enrich_features")
     conda:
         "../envs/enrichment.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.results} \
         --kycg-dir {input.kycg_dir} \
@@ -78,10 +83,15 @@ rule enrich_pathways:
         significance = CW.enrich_significance,
         threshold = CW.enrich_threshold,
         min_set = CW.enrich_min_set_size
+    log:
+        CW.log_path("enrich_pathways")
     conda:
         "../envs/enrichment.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.results} \
         --platform {params.platform} \
@@ -116,10 +126,15 @@ rule plot_enrichment:
         threshold = CW.enrich_threshold
     wildcard_constraints:
         kind = "|".join(CW.ENRICHMENT_KINDS)
+    log:
+        CW.log_path("plot_enrichment", "{kind}")
     conda:
         "../envs/enrichment.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.table} \
         --kind {wildcards.kind} \
@@ -143,10 +158,15 @@ rule enrich_traits:
         significance = CW.enrich_significance,
         threshold = CW.enrich_threshold,
         min_set = CW.enrich_min_set_size
+    log:
+        CW.log_path("enrich_traits")
     conda:
         "../envs/enrichment.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.results} \
         --ewas-atlas {input.atlas} \

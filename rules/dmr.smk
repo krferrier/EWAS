@@ -10,10 +10,15 @@ rule make_bed:
         assoc = CW.assoc_var
     output: 
         CW.dmr_results_bed
+    log:
+        CW.log_path("make_bed")
     conda:
         "../envs/dmr.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript {input.script} \
         --results {input.in_file} \
         --out-dir {params.o_dir} \
@@ -36,10 +41,15 @@ rule run_dmr:
         regions = CW.dmr_regions,
         regions_p = CW.dmr_regions_p,
         slk = CW.dmr_slk
+    log:
+        CW.log_path("run_dmr")
     conda:
         "../envs/dmr.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         comb-p pipeline \
 		--seed {params.min_p} \
 		--dist {params.win_sz} \
@@ -151,10 +161,15 @@ rule annotate_dmrs:
         assoc = CW.assoc_var
     output:
         CW.dmr_anno_final
+    log:
+        CW.log_path("annotate_dmrs")
     conda:
         "../envs/dmr.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         Rscript scripts/dmr_annotation.R \
             --dmr-regions {input.dmr_regions_p} \
             --ewas-bed {input.ewas_bed} \
@@ -200,10 +215,15 @@ rule plot_dmrs:
         combined_formats = CW.dmr_combined_formats
     output:
         CW.dmr_manhattan_plot
+    log:
+        CW.log_path("plot_dmrs")
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        # Everything below -- stdout and stderr of every command -- goes to the
+        # rule's log. Snakemake names the log in its error report if a job fails.
+        exec >{log} 2>&1
         rm -f "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.jpg \
               "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.refGene_genes.tsv \
               "{params.o_prefix}/{params.assoc}_dmr_combined."*

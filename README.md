@@ -120,6 +120,17 @@ paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
 |       |-- config_resolved.yml                  config after --config overrides
 |       `-- run_info.yml                         versions, git state, host, timings, status
 |
+|-- logs/                                        what the analysis scripts printed (stdout + stderr)
+|   |-- run_combined_ewas.log, run_bacon.log     STANDARD ONLY: EWAS and BACON
+|   |-- run_ewas_group/<stratum>.log             STRATIFIED ONLY: EWAS, one per stratum
+|   |-- run_bacon_group/<stratum>.log            STRATIFIED ONLY: BACON, one per stratum
+|   |-- run_metal.log                            STRATIFIED ONLY: METAL meta-analysis
+|   |-- plot_results.log                         Manhattan and QQ plots
+|   |-- make_bed.log, run_dmr.log,               DMR: BED export, comb-p, annotation, plots
+|   |   annotate_dmrs.log, plot_dmrs.log
+|   |-- enrich_features.log, enrich_pathways.log, enrich_traits.log
+|   `-- plot_enrichment/<kind>.log               one per enrichment plot
+|
 |-- <assoc>_ewas_results.csv.gz                  STANDARD ONLY: raw per-CpG regression
 |-- <assoc>_ewas_bacon_results.csv.gz            STANDARD ONLY: bias/inflation adjusted
 |-- bacon_plots/                                 STANDARD ONLY: BACON diagnostics
@@ -645,13 +656,38 @@ snakemake -j <n_jobs>
 
 ## Track Progress
 
-In the `run_ewas` step, a progress reporting bar is generated and output to stdout which will show percent finished and the estimated time to completion. For a standard EWAS, nothing needs to be done to view the progress bar in your terminal. 
+The EWAS, DMR, functional-enrichment and plotting rules write what their
+scripts print -- messages, warnings, errors and the EWAS progress bar -- to
+their own file under `<out_directory>/logs/`, not to the terminal. Snakemake's
+own log in `.snakemake/log/` records only which jobs ran; the scripts' output is
+in these files. If one of these jobs fails, Snakemake's error report names the
+log to read. The download, annotation-preparation and METAL-setup rules print
+little and still write to the terminal.
 
-For a stratified EWAS, once the `run_ewas` step has been reached, a`/log` directory will be created with log files for the progress of each strata. To view the progress bar of a specific stratum in the terminal, you can open a new terminal, navigate to the directory you are running the snakemake workflow,then run:
+To follow the EWAS progress bar while it runs, open a second terminal in the
+workflow directory and run:
 
 ```shell
-tail -F log/<stratum>_ewas.log
+tail -F <out_directory>/logs/run_combined_ewas.log          # standard EWAS
+tail -F <out_directory>/logs/run_ewas_group/<stratum>.log   # stratified EWAS
 ```
+
+Each log is rewritten when its job reruns, so it always belongs to the results
+next to it.
+
+**Results from before logging was added.** Adding the logs changed those
+rules' shell commands, and Snakemake by default reruns a job whose code has
+changed, so the first run afterwards recomputes the EWAS, DMR, enrichment and
+plots (not the annotation downloads). If you have results you do not want to
+recompute, clear Snakemake's stored code record for them once:
+
+```shell
+snakemake --list-changes code 2>/dev/null | xargs snakemake --cleanup-metadata
+```
+
+The existing files then count as up to date. Snakemake will not notice a later
+code change to those particular files until each is next regenerated, so after
+any real change to a rule, force that rule with `--forcerun <rule>`.
 
 <a name="interpretation-of-bacon-performance-plots"></a>
 
