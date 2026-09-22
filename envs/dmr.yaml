@@ -6,6 +6,10 @@ channels:
 dependencies:
   - bedtools
   - combined-pvalues
+  # comb-p runs on Python 2.7. toolshed 0.4.7+ (a noarch package, so the
+  # solver will still pick it) uses threading.TIMEOUT_MAX, which exists only
+  # in Python 3, and comb-p then fails on import. 0.4.6 predates that change.
+  - toolshed <0.4.7
   - cruzdb
   - sqlalchemy
   - interlap
