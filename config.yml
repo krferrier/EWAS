@@ -15,10 +15,11 @@
 # -----------------------------------------------------------------------------
 # Input data                                                          [REQUIRED]
 # -----------------------------------------------------------------------------
-# mvals: CpG-by-sample matrix of M-values. First column is the CpG identifier;
-#        remaining column names must match the sample IDs in `pheno`. The probe
+# mvals: sample-by-CpG matrix of M-values: one row per sample, first column
+#        the sample ID (matching `pheno`), then one column per CpG. The probe
 #        IDs must match the array named in annotation.array_platform (see the
-#        note there about EPICv2/MSA suffixes).
+#        note there about EPICv2/MSA suffixes). Keep the rows in the same order
+#        as `pheno`: the unstratified EWAS pairs them by position.
 # pheno: one row per sample, with the association variable, any stratification
 #        variables, and all model covariates.
 mvals: "data/mvals.csv.gz"

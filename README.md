@@ -73,6 +73,32 @@ This workflow is intended to be used with phenotype and methylation data that ha
 * fast-storage (.fst):
   * file path
 
+#### Test data
+
+`data/pheno.csv` and `data/mvals.csv.gz` are a small simulated test set, sized
+to run the whole workflow quickly while giving every stage something real to
+do: 120 samples (60 F, 60 M) and 4,988 real EPIC CpGs across all chromosomes,
+including X and Y. The phenotype columns are `sampleID`, `sex`, `re` and `BMI`,
+so the shipped `config.yml` runs against it unchanged.
+
+Most CpGs are null, so lambda sits near 1. Planted on top of that:
+
+* 60 single CpGs with a BMI effect, two thirds of them at active promoters
+  (ChromHMM `TssA`), which gives the KYCG enrichment a known signal;
+* 10 differentially methylated regions of 6-15 neighbouring probes each, for
+  comb-p to find, plus 10 correlated regions with no effect as a negative
+  control it should not call;
+* X-inactivation in females, so chrX behaves as it does in real data.
+
+`data/test_truth.tsv` lists every planted CpG with its true effect, so a run can
+be checked against what it should have found rather than just for whether it
+finished. Effects are moderate (strongest hits around p = 1e-24), so the plots
+look like a real study rather than a stress test.
+
+The set is regenerated, byte-identically, by `data/make_test_data.py` (seeded;
+needs numpy and pandas, plus `yame` and the KYCG cache for the promoter bias).
+Its options change the sample size, number of CpGs and planted signal.
+
 ### *Output Files*
 
 <a name="output-files"></a>
