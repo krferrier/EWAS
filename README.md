@@ -174,7 +174,6 @@ paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
     |-- <assoc>_ewas.fdr.bed.gz                  the above with Benjamini-Hochberg FDR
     |-- <assoc>_ewas.regions.bed.gz              called regions
     |-- <assoc>_ewas.regions-p.bed.gz            called regions with region-level p-values
-    |-- <assoc>_ewas.manhattan.png               comb-p's own manhattan plot
     |-- <assoc>_dmr_annotated_results.tsv        regions annotated with genes and CpG islands
     |-- <assoc>_dmr_manhattan.jpg                manhattan plot of the annotated regions
     |-- <assoc>_dmr_zoom_cluster_<i>.jpg         only when dmr_plots.make_zoom: "yes";

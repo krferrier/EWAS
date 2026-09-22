@@ -61,6 +61,11 @@ rule run_dmr:
 		if [[ "$n_raw_regions" -eq 0 ]]; then
 		    gzip -n -c /dev/null > {output.regions_p}
 		fi
+
+		# comb-p always draws its own Manhattan plot of the region p-values; the
+		# workflow's DMR figure comes from plot_dmrs instead, so remove comb-p's to
+		# avoid two. -f: comb-p exits before plotting when it finds no regions.
+		rm -f {params.o_prefix}.manhattan.png
         """
 
 rule fetch_cpg_island_cache:
