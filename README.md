@@ -149,9 +149,10 @@ paths below, `<assoc>` is `association_variable` and `<stratum>` is one level of
 |       |-- <stratum>_<assoc>_posteriors.jpg
 |       |-- <stratum>_<assoc>_fit.jpg
 |       `-- <stratum>_<assoc>_qqs.jpg
-|-- meta_analysis/
-|   `-- <assoc>_metal_commands.sh                STRATIFIED ONLY: generated METAL script
-|-- <assoc>_ewas_meta_analysis_results_1.txt     STRATIFIED ONLY: METAL output
+|-- meta_analysis/                               STRATIFIED ONLY: METAL meta-analysis
+|   |-- <assoc>_metal_commands.sh                generated METAL script
+|   |-- <assoc>_ewas_meta_analysis_results_1.txt       METAL output
+|   `-- <assoc>_ewas_meta_analysis_results_1.txt.info  METAL's run summary
 |
 |-- <assoc>_ewas_annotated_results.csv.gz        final results, annotated (both modes)
 |-- <assoc>_ewas_manhattan_qq_plots.jpg          manhattan + QQ of the final results

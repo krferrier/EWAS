@@ -326,10 +326,6 @@ class ConfigWizard(object):
     def annotated_results(self) -> Path:
         return self._out(f"{self._prefix()}_ewas_annotated_results{self.out_type}")
 
-    @property
-    def meta_analysis_results(self) -> Path:
-        return self._out(f"{self._prefix()}_ewas_meta_analysis_results_1.txt")
-
     def bacon_plot_files(self) -> List[str]:
         # Return strings for Snakemake expand friendliness
         return [str(self._out("bacon_plots", f"{self._prefix()}_{k}.jpg"))
@@ -369,10 +365,12 @@ class ConfigWizard(object):
         """
         Prefix passed to METAL's OUTFILE command.
 
-        METAL appends its output index and extension:
-        <prefix>1.txt
+        METAL appends its output index and extension: <prefix>1.txt, plus
+        <prefix>1.txt.info. Kept in meta_analysis/ with the command file that
+        produces them; make_metal_script creates that directory, and run_metal
+        always runs after it.
         """
-        return self._out(f"{self.assoc_var}_ewas_meta_analysis_results_")
+        return self._out("meta_analysis", f"{self.assoc_var}_ewas_meta_analysis_results_")
 
     @property
     def meta_analysis_results(self) -> Path:

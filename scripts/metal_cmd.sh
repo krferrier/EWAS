@@ -5,8 +5,8 @@
 #
 # Example:
 #   metal_cmd.sh \
-#       results/meta_analysis/BMI_metal_commands.txt \
-#       results/BMI_ewas_meta_analysis_results_ \
+#       results/meta_analysis/BMI_metal_commands.sh \
+#       results/meta_analysis/BMI_ewas_meta_analysis_results_ \
 #       results/F/F_BMI_ewas_bacon_results.csv.gz \
 #       results/M/M_BMI_ewas_bacon_results.csv.gz
 
