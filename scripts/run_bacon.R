@@ -13,12 +13,6 @@ suppressPackageStartupMessages({
        library(cowplot)
 })
 
-# Genomic inflation factor (lambda): the median observed chi-square statistic
-# over its expected value under the null. Identical to QCEWAS::P_lambda
-# (QCEWAS 1.2-3, copied from its source), defined here so the environment does
-# not depend on QCEWAS: conda-forge's r-qcewas has no build newer than R 4.3,
-# while bioconductor-bacon >= 1.32 requires R >= 4.4, so the two cannot be
-# installed together. This was the only QCEWAS function the workflow used.
 p_lambda <- function(p) {
     p <- p[!is.na(p)]
     if (length(p) < 2L) {
@@ -28,12 +22,7 @@ p_lambda <- function(p) {
 }
 
 # ggplot2 versions of the BACON diagnostic plots (ggtraces, ggposteriors,
-# ggfit). These are additions, not overrides -- they were never upstreamed.
-#
-# The former bacon_rng_fix.R and bacon_init_fix.R patches are gone: both were
-# contributed upstream and released in bacon 1.32.0 (Bioconductor 3.19), so the
-# globalSeed / parallelSeed arguments and the Bacon initialize() validation used
-# below come from the package itself. envs/ewas.yaml pins bacon >= 1.32.0.
+# ggfit)
 source("scripts/updated_bacon/modified_bacon_plots.R")
 
 # Define command line arguments
