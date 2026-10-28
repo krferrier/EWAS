@@ -6,7 +6,7 @@ channels:
 dependencies:
   - bedtools
   - combined-pvalues
-  - cruzdb
+  - toolshed <0.4.7
   - sqlalchemy
   - interlap
   - matplotlib
@@ -15,11 +15,13 @@ dependencies:
   - numpy
   - pandas
   - scipy
-  - python
+  - python =2.7
   - r-base
   - r-argparse
   - r-data.table
   - r-dplyr
   - r-tibble
   - r-r.utils
-
+  - pip
+  - pip:
+    - cruzdb
