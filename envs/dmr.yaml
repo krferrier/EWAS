@@ -6,12 +6,7 @@ channels:
 dependencies:
   - bedtools
   - combined-pvalues
-  # Pinning python alone does not help: toolshed is noarch and declares only
-  # `python`, so the solver still picks 0.4.8 for a 2.7 env -- and 0.4.7+ uses
-  # threading.TIMEOUT_MAX, which exists only in Python 3, so comb-p fails on
-  # import. 0.4.6 predates that change.
   - toolshed <0.4.7
-  - cruzdb
   - sqlalchemy
   - interlap
   - matplotlib
@@ -20,8 +15,6 @@ dependencies:
   - numpy
   - pandas
   - scipy
-  # Python 2.7 is not a choice: combined-pvalues (python <3), cruzdb and
-  # mysql-python are all 2.7-only. Stated here so the constraint is visible.
   - python =2.7
   - r-base
   - r-argparse
@@ -29,4 +22,6 @@ dependencies:
   - r-dplyr
   - r-tibble
   - r-r.utils
-
+  - pip
+  - pip:
+    - cruzdb

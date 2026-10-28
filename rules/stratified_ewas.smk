@@ -98,23 +98,18 @@ rule install_metal:
         "../envs/metal-build.yaml"
     shell:
         """
-      	cd software/metal
-	    tar -xzf METAL.tar.gz --strip-components=1
-	    sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/cmake_minimum_required(VERSION 3.5...3.27)/' CMakeLists.txt
-	    sed -i '/add_executable(metal/a target_include_directories(metal PRIVATE ${{ZLIB_INCLUDE_DIRS}})' metal/CMakeLists.txt
+        cd software/metal
+        tar -xzf METAL.tar.gz --strip-components=1
+        perl -pi -e 's/cmake_minimum_required\\(VERSION [0-9.]+\\)/cmake_minimum_required(VERSION 3.5...3.27)/' CMakeLists.txt
+        perl -pi -e '$_ .= q(target_include_directories(metal PRIVATE ${{ZLIB_INCLUDE_DIRS}})) . "\\n" if /add_executable\\(metal/' metal/CMakeLists.txt
 
         mkdir -p build
         cd build
 
-        # Configure with conda compilers and explicit zlib paths
         cmake .. \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc \
-          -DCMAKE_CXX_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++ \
-          -DZLIB_LIBRARY=$CONDA_PREFIX/lib/libz.so \
-          -DZLIB_INCLUDE_DIR=$CONDA_PREFIX/include
+          -DZLIB_ROOT="$CONDA_PREFIX"
 
-        # Build and install
         make
         make test
         make install
