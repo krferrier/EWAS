@@ -5,17 +5,13 @@ channels:
   - r
   - nodefaults
 dependencies:
-  # Core languages
   - r-base
-
-  # R:
-  - r-essentials  # includes tidyverse, devtools, Rcpp, etc.
+  - r-essentials
   - r-biocmanager
-  - bioconductor-bacon
+  - bioconductor-bacon >=1.32.0
   - bioconductor-biocparallel
   - r-argparse
   - r-qqman
-  - r-qcewas
   - r-caret
   - r-rmarkdown
   - r-shiny
