@@ -6,7 +6,6 @@ suppressPackageStartupMessages({
        library(dplyr)
        library(data.table)
        library(bacon)
-       library(QCEWAS)
        library(qqman)
        library(ggplot2)
        library(reshape2)
@@ -14,9 +13,16 @@ suppressPackageStartupMessages({
        library(cowplot)
 })
 
-# Import modified bacon functions
-source("scripts/updated_bacon/bacon_rng_fix.R")
-source("scripts/updated_bacon/bacon_init_fix.R")
+p_lambda <- function(p) {
+    p <- p[!is.na(p)]
+    if (length(p) < 2L) {
+        stop("'p' does not contain sufficient non-missing values to calculate lambda")
+    }
+    median(qchisq(p, df = 1, lower.tail = FALSE)) / qchisq(0.5, 1)
+}
+
+# ggplot2 versions of the BACON diagnostic plots (ggtraces, ggposteriors,
+# ggfit)
 source("scripts/updated_bacon/modified_bacon_plots.R")
 
 # Define command line arguments
@@ -88,9 +94,9 @@ ewas$bacon.es <- bacon::es(bc)
 # Extract bacon-adjusted standard error
 ewas$bacon.se <- bacon::se(bc)
 # Estimate the original p-value lambda
-ewas$lambda <- QCEWAS::P_lambda(ewas$p.value)
+ewas$lambda <- p_lambda(ewas$p.value)
 # Estimate the bacon-adjusted p-value lambda
-ewas$b.lambda <- QCEWAS::P_lambda(ewas$bacon.pval)
+ewas$b.lambda <- p_lambda(ewas$bacon.pval)
 
 # Export bacon-adjusted results
 fwrite(ewas, file=paste0(out_dir, "/", filename, "_ewas_bacon_results", out_type))
