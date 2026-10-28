@@ -45,6 +45,7 @@ rule run_dmr:
 		--dist {params.win_sz} \
 		-p {params.o_prefix} \
 		--region-filter-p {params.region_filter} \
+		--region-filter-n 2 \
 		{input.in_file}
 
 		n_raw_regions=$(gzip -cd {output.regions} | awk 'NF {{ n++ }} END {{ print n + 0 }}')

@@ -61,6 +61,9 @@ if(stratified=="no" | stratified == "False"){
                       
 }
 
+res <- na.omit(res)
+res$pvals <- pmax(res$pvals, .Machine$double.xmin)
+
 # Export BED file
 file_name <- paste0(out_dir, "/", assoc, "_ewas_annotated_results.bed")
 write.table(res, file = file_name, append = FALSE, sep = "\t",
