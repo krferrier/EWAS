@@ -1,7 +1,7 @@
 # Overview
 
 ---
-This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by an Illumina Infinium methylation array. It was developed and tested against the EPIC (850k) array. The annotation step is platform-agnostic — every array Zhou publishes (EPIC, EPICv2, MSA, HM450, HM27, Mammal40, MM285) shares one manifest schema and is selectable via `annotation.array_platform` — but only EPIC has been exercised end to end, so treat the others as untested. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either the standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
+This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by an Illumina Infinium methylation array. It was developed and tested against the EPIC (850k) array. The annotation step is platform-agnostic — every array Wanding Zhou has published annotation data for (EPIC, EPICv2, MSA, HM450, HM27, Mammal40, MM285) is available and can be specified via `annotation.array_platform`  in the `config.yaml`. Only EPIC has been executed and evaluated end to end, so treat the others as untested. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either a standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
 
 If your main predictor is categorical (with 2 levels), the values must be dummy coded to numerics. All other categorical covariates can remain as characters. The R glm() function is unable to use unordered categorical data as the main predictor because it cannot determine which of the values to use as the reference. The pipeline has not yet been tested with a main predictor that has more than two categorical levels. Automatic handling of predictors that are categorical/character values will be added in the next major update.
 
@@ -9,13 +9,13 @@ Results from the linear regression analyses will be adjusted for bias and inflat
 
 The final EWAS results are annotated from three sources: gene and promoter assignments from the [Wanding Zhou](https://zwdzwd.github.io/InfiniumAnnotation) Infinium manifest, CpG-island context derived from the UCSC `cpgIslandExt` track, and whole-blood *cis*-eQTM genes from BIOS. A manhattan and qq plot of the final EWAS results is also output. See [Annotation Resources](#annotation-resources) for what each contributes and how it is versioned, and [Annotated Results Columns](#annotated-results-columns) for the output file layout.
 
-The significant CpG set is then assessed automatically for functional, pathway and trait enrichment — chromatin states and other [Know Your CpG (KYCG)](https://zhou-lab.github.io/kycg/) feature sets, GO and KEGG terms, and published EWAS Atlas trait associations — all tested against the CpGs actually analysed rather than the whole array. See [Functional Enrichment](#functional-enrichment).
+The significant CpG set is then assessed automatically for functional, pathway and trait enrichment, chromatin states and other [Know Your CpG (KYCG)](https://zhou-lab.github.io/kycg/) feature sets, GO and KEGG terms, and published EWAS Atlas trait associations. All tests are compared against the CpGs actually analyzed rather than the whole array. See [Functional Enrichment](#functional-enrichment).
 
-This workflow can also perform differentially methylated region (DMR) analysis using the EWAS summary statistics. The DMR is conducted with the [comb-p](https://github.com/brentp/combined-pvalues) command-line tool. Parameters for performing the DMR can be modified in the config.yaml. 
+This workflow can also perform differentially methylated region (DMR) analysis using the EWAS summary statistics. The DMR is conducted with the [comb-p](https://github.com/brentp/combined-pvalues) command-line tool. Parameters for performing the DMR can be modified in the `config.yaml`. 
 
-## Workflow at a glance
+## Workflow overview
 
-Optional stages are labelled with the config setting that switches them on;
+Optional stages are labelled in the config;
 rule names are in parentheses.
 
 ```mermaid
@@ -44,9 +44,8 @@ flowchart TD
     RES --> DANN
 ```
 
-Every run that executes at least one job also records its own command line and
-configuration -- see [Run Provenance](#run-provenance). Rule-level graphs of the
-complete workflow for both modes are in `data/example_dags/`.
+The run command and configuration is recorded for each run that executes at least one job-- see [Run Provenance](#run-provenance). Rule-level graphs of the
+complete workflow for both standard and stratified EWAS are in `data/example_dags/`.
 
 # Dependencies
 
@@ -76,25 +75,22 @@ This workflow is intended to be used with phenotype and methylation data that ha
 #### Test data
 
 `data/pheno.csv` and `data/mvals.csv.gz` are a small simulated test set, sized
-to run the whole workflow quickly while giving every stage something real to
-do: 120 samples (60 F, 60 M) and 4,988 real EPIC CpGs across all chromosomes,
-including X and Y. The phenotype columns are `sampleID`, `sex`, `re` and `BMI`,
-so the shipped `config.yml` runs against it unchanged.
+to run the whole workflow quickly: 120 samples (60 F, 60 M) and 4,988 real EPIC CpGs across all chromosomes,
+including X and Y. The phenotype columns are `sampleID`, `sex`, `re` and `BMI`.
+The `config.yaml` is set to run the dummy dataset with no changes needed.
 
-Most CpGs are null, so lambda sits near 1. Planted on top of that:
+The dummy dataset is seeded with the following signals:
 
 * 60 single CpGs with a BMI effect, two thirds of them at active promoters
-  (ChromHMM `TssA`), which gives the KYCG enrichment a known signal;
-* 10 differentially methylated regions of 6-15 neighbouring probes each, for
-  comb-p to find, plus 10 correlated regions with no effect as a negative
-  control it should not call;
+  (ChromHMM `TssA`), which gives the KYCG enrichment a known signal to detect;
+* 10 differentially methylated regions of 6-15 neighbouring probes each, plus 10 correlated regions with no effect as a negative
+  control that should not be called;
 * X-inactivation in females, so chrX behaves as it does in real data.
 * a few CpGs on unplaced/alt contigs and a few with no hg38 position, as real
-  EPIC data has, so sorting and filtering are exercised on every run.
+  EPIC data has.
 
-`data/test_truth.tsv` lists every planted CpG with its true effect, so a run can
-be checked against what it should have found rather than just for whether it
-finished. Effects are moderate (strongest hits around p = 1e-24), so the plots
+`data/test_truth.tsv` lists all planted CpGs with its true effect so you can 
+check what you found. Effects are moderate (strongest hits around p = 1e-24), so the plots
 look like a real study rather than a stress test.
 
 The set is regenerated, byte-identically, by `data/make_test_data.py` (seeded;
@@ -193,9 +189,8 @@ The zoom plots are untracked for a similar reason. If and how
 many appear depends on how many clusters of significant regions comb-p finds,
 which is not knowable before it runs. They are side outputs of `plot_dmrs`,
 whose manhattan plot *is* tracked, so the rule still reruns when the region
-calls change. Because Snakemake will not clean them up, `plot_dmrs` deletes any
-zoom files from a previous run before writing new ones -- what is on disk always
-belongs to the current results.
+calls change. Because Snakemake will not clean them up, the `plot_dmrs` rule deletes any
+zoom files from a previous run before writing new ones.
 
 You can also choose to have a pdf with all the different DMR plots (manhattan and regional)  
 combined into one output pdf.  
@@ -205,7 +200,7 @@ Annotation resources are cached outside `out_directory`, under
 once and shared across runs. METAL is built once into `software/metal/`. See
 [Annotation Resources](#annotation-resources).
 
-#### What each stage produces
+#### Descriptions of outputs
 
 **EWAS** (`run_combined_ewas` / `stratify_data` + `run_ewas_group`)
 
@@ -221,7 +216,7 @@ once and shared across runs. METAL is built once into `software/metal/`. See
   `bacon.statistic`, `bacon.pval` and the genomic inflation factors `lambda`
   (before) and `b.lambda` (after).
 * Four diagnostic plots per run or per stratum -- traces, posteriors, fit and
-  QQ. Check these before trusting the adjustment; see
+  QQ. Check these before trusting the final results; see
   [Interpretation of BACON Performance Plots](#interpretation-of-bacon-performance-plots).
 
 **Meta-analysis** (`make_metal_script`, `run_metal`, stratified only)
@@ -230,17 +225,17 @@ once and shared across runs. METAL is built once into `software/metal/`. See
   and inspectable.
 * METAL's inverse-variance weighted results across strata: `MarkerName`,
   `Effect`, `StdErr`, `P-value` and `Direction`, the last giving one character
-  per stratum so you can see whether strata agree in sign.
+  per stratum so you can see whether strata agree in direction of effect.
 
 **Annotation** (`add_annotation`)
 
 * The final results table: the EWAS or meta-analysis statistics with annotation
-  columns, sorted by p-value. This is the file to work from.
+  columns, sorted by p-value. 
 * Gene and transcript assignments, CpG-island context, whole-blood eQTM genes
-  and KYCG feature columns. Every column is listed in
+  and KYCG feature columns. Column descriptions are listed in
   [Annotated Results Columns](#annotated-results-columns).
 * The rule reports the fraction of result CpGs it could annotate and stops if
-  that falls below a floor, which is what catches a mismatch between
+  that falls below a threshold. This catches mismatches between
   `annotation.array_platform` and the array the M-values came from.
 
 **Enrichment** (`enrich_features`, `enrich_pathways`, `enrich_traits`)
@@ -255,7 +250,7 @@ once and shared across runs. METAL is built once into `software/metal/`. See
 * A BED format of the annotated results, which is comb-p's input.
 * comb-p's intermediates: the arguments used, the autocorrelation function by
   distance lag, per-CpG p-values corrected for local correlation, and the same
-  with FDR. The `.acf.txt` is worth a look -- it shows the distance over which
+  with FDR. The `.acf.txt` shows the distance over which
   neighbouring CpGs are correlated, which sets how regions get built.
 * The called regions, with and without region-level p-values, plus comb-p's own
   manhattan plot.
@@ -264,8 +259,7 @@ once and shared across runs. METAL is built once into `software/metal/`. See
 
 **Provenance** (`onstart` / `onsuccess` / `onerror` handlers)
 
-* A per-run record of the command and configuration that produced everything
-  above. See [Run Provenance](#run-provenance).
+* A per-run record of the command and configuration at runtime. See [Run Provenance](#run-provenance).
 
 ### *Annotation Resources*
 
@@ -283,7 +277,7 @@ resources/annotation/
   eqtm/                                   BIOS eQTM and HGNC tables
 ```
 
-Each fetch rule writes a small `*_manifest.tsv` beside the files it downloads,
+Each fetch rule writes a small `*_manifest.tsv` 
 recording the source URL, version and timestamp, so a results directory can be
 traced back to the exact annotation used.
 
@@ -294,7 +288,7 @@ traced back to the exact annotation used.
 | BIOS *cis*-eQTM + HGNC | `BIOS_eQTM_genes` | `get_annotation_data`, `prep_bios_eqtm_annotation` | always |
 | UCSC `refGene` + HGNC BigBed | DMR gene annotation | `fetch_dmr_annotation_cache` | only when `dmr_analysis: "yes"` |
 
-#### Which settings matter
+#### Config parameters to check
 
 | Setting | Default | Notes |
 |---------|---------|-------|
@@ -381,14 +375,14 @@ Three independent tests of the significant CpG set, controlled by the
 `enrichment:` block in `config.yml` and written to
 `<out_directory>/enrichment/`. Set `run: "no"` to skip all three.
 
-**The background is the set of CpGs actually tested, never the full array.**
+**The background is the set of CpGs actually tested, not the full array.**
 Probes are dropped before an EWAS for mapping quality, masking and QC, and
 those exclusions are not uniform across the genome. Testing against the whole
-manifest would score that removal pattern as enrichment. The counts here will
-therefore not match tools that default to the array as the background set.
+manifest would show associations based on what was excluded. The counts here will
+therefore not match tools that default to the full array as the background set.
 
-A test that cannot run writes an empty table naming the reason in its log
-rather than failing the workflow.
+A test that cannot run writes an empty table with the reason it wasn't run recorded in its log
+(otherwise the workflow would fail for a 'missing' file).
 
 | Setting | Default | Notes |
 |---------|---------|-------|
@@ -408,34 +402,33 @@ position and CpG islands.
 For what each knowledgebase is and what its feature labels mean, see
 [What the KYCG knowledgebases are](#kycg-knowledgebases).
 
-Implemented with `yame`: the query is packed as a format-6 record carrying two
+Implemented with `yame`: the query is packed as a format-6 record with two
 bits per probe, one for the background and one for the test set, so the restricted
 background is applied inside the overlap counting. `yame summary` then reports
-the 2x2 per feature and the hypergeometric p-value and FDR are computed in R.
+the 2x2 per feature. The hypergeometric p-value and FDR are computed in R.
 
 Columns: `knowledgebase`, `role`, `feature`, `n_universe`, `n_significant`,
 `n_in_feature`, `n_overlap`, `expected`, `fold_enrichment`, `neg_log10_p`,
 `neg_log10_fdr`, `n_tested_in_kb`, `log2_odds_ratio`, `p_value`, `fdr`.
 
 `role` is `biological` or `qc`, which is how the two feature plots split this
-one table. `n_tested_in_kb` is the size of the testing family the row's FDR was
+table. `n_tested_in_kb` is the size of the testing family the row's FDR was
 computed in. `neg_log10_p` and `neg_log10_fdr` are exact where `p_value` and
 `fdr` have underflowed to zero.
 
-The background here is **CpGs**, not genes -- see
+The background here is **CpGs**, *not genes* -- see
 [KYCG tests CpGs; GO and KEGG test genes](#kycg-tests-cpgs-go-and-kegg-test-genes).
 
 
 #### `<assoc>_enrichment_pathways.tsv`
 
 GO and KEGG via `missMethyl::gometh`, which corrects for the number of probes
-per gene. This matters: a gene covered by 80 probes is far likelier to pick up
-a significant CpG than one covered by 3, and an uncorrected gene-set test
-reports that coverage as biology.
+per gene. This matters because a gene with 80 probes is far more likely to have a significant CpG than a gene covered by 3, and an uncorrected gene-set test
+reflects that difference in coverage and is misconstrued as biological significance.
 
-The cost is that missMethyl maps probes with Illumina's own annotation
-packages, so **only 450K, EPIC and EPICv2 are supported**. On any other
-`array_platform` this rule writes an empty table; feature and trait
+Of note, missMethyl maps probes with Illumina's own annotation
+packages, so **only 450K, EPIC and EPICv2 are supported**. Any other
+`array_platform` will output an empty table for GO and KEGG enrichment. Feature and trait
 enrichment still run.
 
 Columns: `collection`, `term_id`, `term`, `ontology`, `n_genes_in_term`,
@@ -450,15 +443,15 @@ Columns: `trait`, `n_universe`, `n_significant`, `n_trait_probes`,
 `n_overlap`, `expected`, `fold_enrichment`, `p_value`, `fdr`, `n_studies`,
 `pmids`, `overlapping_probes`.
 
-Two caveats. The Atlas is a catalogue of what has been published, so its
+The EWAS Atlas is a catalogue of what has been published, so its
 coverage reflects study volume. So, commonly studied traits/phenotypes, like smoking, ageing and sex are overrepresented compared to rare traits/phenotypes, and an
 overlap partly reflects how often they have been measured. As a reminder, each
 trait's probe list is restricted here to probes in your background, so counts
 will not match the Atlas website if you were to use their online webtool, which reports across all arrays at once.
 
-The Atlas is keyed on bare `cg` identifiers, so an EPICv2 or MSA run that keeps
-the design suffix will not match; the rule reports this rather than returning
-an empty result silently.
+The Atlas is keyed on `cg` identifiers, so an EPICv2 or MSA run that keeps
+the design suffix will not match; the rule reports this rather than silently returning
+empty results.
 
 #### What the KYCG knowledgebases are
 
@@ -466,7 +459,7 @@ an empty result silently.
 
 The names of the knowledgebases referenced in the Know Your CpG (KYCG) database 
 are not always intuitive or clear as to what that knowledgebase represents for 
-biological interpretation. And the feature labels within a knowledgebase annotation 
+biological interpretation. And, the feature labels within a knowledgebase annotation 
 can be even more unclear unless you happen to already be familiar with the knowledgebase. 
 For example the `ABCompartment` is an enrichment knowledgebase of the Hi-C subcompartments 
 as defined by Rao et al. 2014. The `ABCompartment` set is comprised of six subcompartment labels, 
@@ -476,24 +469,24 @@ which generally tell you how open/active or closed/inactive the chromatin is.
 ##### Which sets are tested
 
 Zhou publishes 17 sets for EPIC and 32 for MSA. This workflow tests two
-named groups, both written to the same table and told apart by its `role`
-column, but plotted separately:
+named groups, both written to the same table (differentiated by the `role`
+column), but plotted separately:
 
 `enrichment.knowledgebases` -- the biological sets (13 by default):
 
-| Set | What a hit means |
+| Set | Description |
 |---|---|
-| `ChromHMM`, `REMCChromHMM` | hits fall in a chromatin state (ENCODE and Roadmap models) |
-| `HM` | hits fall under a histone mark or variant |
-| `TFBSrm` | hits fall in a transcription factor's binding sites |
-| `CTCFbind` | hits fall at CTCF sites, whose binding is methylation-sensitive |
-| `CGI` | hits fall in islands, shores, shelves or open sea |
-| `MetagenePC` | hits fall at a particular position relative to genes |
-| `ABCompartment` | hits fall in a Hi-C A/B subcompartment |
-| `PMD` | hits fall in partially methylated domains |
-| `rmsk1`, `rmsk2` | hits fall in a repeat class or family |
-| `Tetranuc2` | hits share a WCGW/SCGS sequence context |
-| `ImprintingDMR` | positive control -- a hit means real allele-specific biology |
+| `ChromHMM`, `REMCChromHMM` | chromatin state (ENCODE and Roadmap models) |
+| `HM` | histone mark or variant |
+| `TFBSrm` | transcription factor binding sites |
+| `CTCFbind` | CTCF sites, whose binding is methylation-sensitive |
+| `CGI` | islands, shores, shelves or open sea |
+| `MetagenePC` | particular position relative to genes |
+| `ABCompartment` | Hi-C A/B subcompartment |
+| `PMD` | partially methylated domains |
+| `rmsk1`, `rmsk2` | repeat class or family |
+| `Tetranuc2` | share a WCGW/SCGS sequence context |
+| `ImprintingDMR` | allele-specific biology |
 
 There are four knowledgebases which are more related to the array design: 
 `ProbeType`, `InfiniumChemistry`, `Blacklist` and `nFlankCG`. Zhou's registry frames the first three as post-hoc *controls*. 
@@ -505,7 +498,7 @@ density of CpGs, so this is more of a positive-control check.
 On EPIC those 17 happen to be everything the platform publishes. Other
 platforms publish more. MSA has 32, including tissue signatures, CoRSIVs,
 evolutionary conservation and G-quadruplex peaks. Any published set can
-be added by name. Two places to look:
+be added by name. If you want to see all options, you can find them in:
 
 * `data/kycg_set_coverage.tsv` in this repository: all 32 sets across the six
   array platforms, with which platforms publish each, its role, upstream
@@ -530,11 +523,10 @@ and the sets are browsable at
 
 <a name="kycg-tests-cpgs-go-and-kegg-test-genes"></a>
 
-These are not the same kind of test, and the difference decides what a result
-means. The KYCG knowledgebases partition **CpGs**: the background is the probes
-actually tested, each feature is a set of probes, and a hit says *your
-significant CpGs fall in this annotation more often than the CpGs you tested*.
-GO and KEGG partition **genes**: `enrich_pathways.R` maps significant CpGs to
+The KYCG knowledgebases are based on **CpGs**: the background is the probes
+actually tested and each feature is a set of probes. A significant result says *your
+top CpGs fall in this annotation more often than the full set of CpGs you tested*.
+GO and KEGG are based on **genes**: `enrich_pathways.R` maps significant CpGs to
 genes first, and a hit says *the genes your CpGs map to are over-represented in
 this term*.
 
@@ -543,10 +535,7 @@ Two points to keep in mind:
 * A CpG-level result does not rely on a gene mapping. CpGs occur in both coding and
   non-coding regions of the genome. The KYCG annotation information is particularly useful for providing
   biological information on CpGs that are non-coding or intergenic. 
-* A gene-level result inherits the CpG-to-gene mapping. Genes covered by many
-  probes get more chances to be hit, which is why `gometh` corrects for the
-  number of probes per gene; a plain gene-set test on array data does not and
-  is biased toward large, probe-dense genes.
+* A gene-level result uses the CpG-to-gene mapping. Not all CpGs *have* gene mappings. And the CpG-to-gene mapping assumes that the CpG affects that gene's expression (cis-effect) when it possible a CpG affects a more distant (by a linear measurement of basepairs) gene (trans-effect).
 
 
 #### Enrichment plots
@@ -561,16 +550,16 @@ With `enrichment.make_plots: "yes"` four plots are produced.
 | `<assoc>_enrichment_traits.jpg` | Trait Enrichment dot plot |
 
 **KYCG plots** follow the shape of knowYourCG's
-`KYCG_plotEnrichAll`: every tested knowledgebase occupies a stretch of the x
-axis, labelled underneath with the number of features tested in it, and its
-enriched features sit directly above it. The y axis is -log10(FDR), point size
+`KYCG_plotEnrichAll`: all tested knowledgebase are along the x
+axis, labelled underneath with the number of features tested, and its
+enriched features directly above it. The y axis is -log10(FDR), point size
 is the log2 odds ratio, and the strongest hit in each knowledgebase is
 labelled. Related knowledgebases are adjacent, grouped by what they describe,
 with alternating background bands marking the groups
 
-**The pathway and trait plots** stay dot plots of the top
+**The pathway and trait plots** dot plots of the top
 `enrichment.plot_top_n` by FDR (that setting does not affect the feature
-plots, which draw every enriched feature). Point size and transparency carry how many
+plots, which draw every enriched feature). Point size and transparency show how many
 CpGs or genes drive each result; solid points pass the FDR threshold and
 hollow ones do not.
 
@@ -597,7 +586,7 @@ Note that `genome_build` is not a DMR-only setting: it selects both the UCSC tra
 
 #### DMR plots
 
-`plot_dmrs` always writes the region manhattan plot. The `dmr_plots:` block
+`plot_dmrs` always exports a region manhattan plot. The `dmr_plots:` block
 controls two optional additions.
 
 | Parameter | Default | Description |
@@ -610,12 +599,8 @@ controls two optional additions.
 | zoom_padding | 2000 | bp of context on each side of a zoomed cluster |
 | cluster_gap | 3000 | Largest gap in bp between regions still grouped into one zoom window |
 
-`make_zoom` is off by default because the number of files it produces is not
-bounded by anything you set: it is two files per cluster of significant regions,
-so a result with many regions can produce a great many files. Turn it on when
-you want to look at individual regions -- each plot shows the CpGs in the window
-with a refGene gene track underneath, and the accompanying `.tsv` lists the
-genes in that window.
+`make_zoom` is off by default because it is unknown before you run how many significant regions might be detected, which could mean a large number of files could be created that you might not need or want. For each region, two files are generate: a plot of the CpGs in the regional window with a gene track underneath and a tsv listing the genes in that window.  Turn it on when
+you want to look at individual regions.
 
 
 
@@ -646,7 +631,7 @@ snakemake --rulegraph | dot -Tpng > rulegraph.png
 
 ## Run EWAS
 
-Once you have modified the `config.yml` file to match your projects specifications and computational resources you are ready to run the EWAS. The first time you run the pipeline it may take a while to begin as snakemake will need to download the annotation files and build the conda environment for performing the EWAS. These steps will be cached and will not need to be performed again in subsequent runs. 
+Once you have modified the `config.yml` file to match your projects specifications and computational resources you are ready to run the EWAS. The first time you run the pipeline it may take a while to begin as Snakemake will need to download the annotation files and build the Conda environments. These steps will be cached and will not need to be performed again in subsequent runs. 
 
 **Standard (non-stratified) or Stratified EWAS**:
 
@@ -658,13 +643,13 @@ snakemake -j <n_jobs>
 
 The EWAS, DMR, functional-enrichment and plotting rules write what their
 scripts print -- messages, warnings, errors and the EWAS progress bar -- to
-their own file under `<out_directory>/logs/`, not to the terminal. Snakemake's
+a log file under `<out_directory>/logs/`, not to the terminal. Snakemake's
 own log in `.snakemake/log/` records only which jobs ran; the scripts' output is
-in these files. If one of these jobs fails, Snakemake's error report names the
+in these files. If one of these jobs fails, Snakemake's error report tells you which
 log to read. The download, annotation-preparation and METAL-setup rules print
 little and still write to the terminal.
 
-To follow the EWAS progress bar while it runs, open a second terminal in the
+To see the EWAS progress bar while it runs, open a second terminal in the
 workflow directory and run:
 
 ```shell
@@ -672,22 +657,8 @@ tail -F <out_directory>/logs/run_combined_ewas.log          # standard EWAS
 tail -F <out_directory>/logs/run_ewas_group/<stratum>.log   # stratified EWAS
 ```
 
-Each log is rewritten when its job reruns, so it always belongs to the results
-next to it.
+Each log is rewritten when its job reruns, so it always shows output/progress from the current run.
 
-**Results from before logging was added.** Adding the logs changed those
-rules' shell commands, and Snakemake by default reruns a job whose code has
-changed, so the first run afterwards recomputes the EWAS, DMR, enrichment and
-plots (not the annotation downloads). If you have results you do not want to
-recompute, clear Snakemake's stored code record for them once:
-
-```shell
-snakemake --list-changes code 2>/dev/null | xargs snakemake --cleanup-metadata
-```
-
-The existing files then count as up to date. Snakemake will not notice a later
-code change to those particular files until each is next regenerated, so after
-any real change to a rule, force that rule with `--forcerun <rule>`.
 
 <a name="interpretation-of-bacon-performance-plots"></a>
 
