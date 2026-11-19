@@ -1,15 +1,6 @@
 localrules: fetch_ewas_atlas
 
-# Functional assessment of the significant CpG set. Three independent tests,
-# each writing its own table; a test that cannot run writes an empty table
-# naming the reason rather than failing the workflow.
-#
-# All three share one background: the CpGs actually tested, never the full
-# array manifest. See scripts/enrichment_common.R for why.
-
 rule fetch_ewas_atlas:
-    # EWAS Atlas association table (CpG to published trait association).
-    # Roughly 100 MB; cached alongside the other annotation resources.
     output:
         atlas = protected(CW.ewas_atlas_txt),
         manifest = CW.anno_cache_dir.joinpath("ewas_atlas", "ewas_atlas_manifest.tsv")
@@ -27,10 +18,6 @@ rule fetch_ewas_atlas:
         """
 
 rule enrich_features:
-    # KYCG knowledgebases. Not everything the platform publishes: a short
-    # biological selection, set by enrichment: knowledgebases: in the config
-    # and defaulting to ConfigWizard.KYCG_ENRICHMENT_SETS, which explains the
-    # reasoning for each inclusion and exclusion.
     input:
         results = CW.annotated_results,
         kycg_dir = rules.fetch_kycg_features.output.kycg,
@@ -52,8 +39,6 @@ rule enrich_features:
         "../envs/enrichment.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.results} \
@@ -69,8 +54,6 @@ rule enrich_features:
         """
 
 rule enrich_pathways:
-    # GO and KEGG via missMethyl, which corrects for probes-per-gene bias.
-    # Skips with an explanatory empty table on platforms it cannot map.
     input:
         results = CW.annotated_results,
         script = "scripts/enrich_pathways.R",
@@ -89,8 +72,6 @@ rule enrich_pathways:
         "../envs/enrichment.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.results} \
@@ -106,15 +87,6 @@ def _enrichment_table(wildcards):
     return CW.enrichment_table(wildcards.kind)
 
 rule plot_enrichment:
-    # One dot plot per enrichment analysis: top N by p-value, point size and
-    # transparency showing how many CpGs or genes drive each result, solid
-    # versus hollow separating what passes FDR from what does not.
-    #
-    # The plot is always written, so it stays a tracked output. When the table
-    # is empty or nothing is significant, the plot says that instead -- the
-    # same convention the enrichment tables use. That avoids the alternative
-    # of an untracked output, which would need a sentinel file for Snakemake
-    # to know the rule had run.
     input:
         table = _enrichment_table,
         script = "scripts/plot_enrichment.R"
@@ -132,8 +104,6 @@ rule plot_enrichment:
         "../envs/enrichment.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.table} \
@@ -145,7 +115,6 @@ rule plot_enrichment:
         """
 
 rule enrich_traits:
-    # EWAS Atlas trait over-representation.
     input:
         results = CW.annotated_results,
         atlas = rules.fetch_ewas_atlas.output.atlas,
@@ -164,8 +133,6 @@ rule enrich_traits:
         "../envs/enrichment.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.results} \
