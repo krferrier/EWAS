@@ -19,8 +19,6 @@ rule run_combined_ewas:
         "../envs/ewas.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         export R_PROGRESSR_ENABLE=TRUE 
         Rscript {input.script} \
@@ -53,8 +51,6 @@ rule run_bacon:
         "../envs/ewas.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.in_file} \
