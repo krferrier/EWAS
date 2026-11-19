@@ -14,8 +14,6 @@ rule plot_results:
         "../envs/ewas.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.in_file} \
