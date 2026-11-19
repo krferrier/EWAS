@@ -11,12 +11,7 @@ rule get_annotation_data:
     # Zhou lab Infinium annotation. The zhouserver.research.chop.edu paths this
     # rule used to wget are retired; the tables now live in the GitHub repo
     # zhou-lab/InfiniumAnnotationData and are pinned here by release tag
-    # (config: ewas_annotation.zhou_release) rather than tracking main.
-    #
-    # Only the gene/promoter manifest is fetched. The companion
-    # EPIC.hg38.commonsnp.tsv.gz is a frozen 1000 Genomes Phase 3 / dbSNP 151
-    # probe-to-variant lookup and is deliberately not used: SNP-affected probes
-    # are expected to be masked before the EWAS is run.
+    # (config: ewas_annotation.zhou_release).
     output:
         gene_manifest = protected(CW.ewas_gene_manifest),
         bios_eqtm = protected(CW.bios_eqtm_txt),
@@ -83,14 +78,9 @@ rule fetch_kycg_features:
         wget -O {output.ordering}.tmp {params.ordering_url}
         mv {output.ordering}.tmp {output.ordering}
 
-        # What each KYCG set IS -- title, biology, upstream source, citation.
-        # Cached so a results directory carries the definitions of the features
-        # it reports; a label such as ABCompartment's "B4" is not self-evident.
         wget -O {output.registry}.tmp {params.registry_url}
         mv {output.registry}.tmp {output.registry}
 
-        # One unauthenticated call to the GitHub contents API resolves the
-        # date-stamped filenames for this platform and release.
         listing=$(mktemp)
         curl -sSL --retry 3 --max-time 120 "{params.api_url}" \
           | grep -oE '"name": "[^"]+\\.cm"' | sed 's/.*: "//; s/"//' | sort -u > "$listing"
@@ -100,13 +90,6 @@ rule fetch_kycg_features:
           rm -f "$listing"; exit 1
         fi
 
-        # Only the sets actually used are fetched: those that become
-        # annotation columns, plus those tested for enrichment. A platform can
-        # publish far more than that (EPIC 17, MSA 32) and the unused ones are
-        # the large ones -- TFBSrm alone carries 1188 records. "all" fetches
-        # everything the platform publishes.
-        # The .cm.idx sidecar carries the record names -- without it yame
-        # reports bare indices -- so it is fetched alongside each set.
         {{
           echo -e "feature_set\tpublished_file\tplatform\trelease\tannotation_column\tenrichment_tested\tsource\tcreated"
           while read -r src; do
@@ -155,11 +138,6 @@ rule add_annotation:
     input:
         in_file = get_file,
         gene_file = rules.get_annotation_data.output.gene_manifest,
-        # Produced by fetch_cpg_island_cache in rules/dmr.smk. Referenced by
-        # path rather than via rules.* because dmr.smk is included after this
-        # file. GENCODE v41 dropped the CGI and CGIposition columns that v36
-        # carried, so islands are called from the UCSC track instead -- which
-        # is where Zhou's own CGI annotation came from.
         cpg_islands = CW.dmr_cpg_island_bed,
         eqtm_file = rules.prep_bios_eqtm_annotation.output.annotation,
         kycg_dir = rules.fetch_kycg_features.output.kycg,
