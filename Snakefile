@@ -48,9 +48,7 @@ include: "rules/enrichment.smk"
 
 #---- RUN PROVENANCE ----#
 # Saves the command line and the configuration file into
-# <out_directory>/provenance/<run_id>/ so a results directory always carries a
-# record of how it was produced. See helper_fxns.record_run_provenance for why
-# this is a handler rather than a rule.
+# <out_directory>/provenance/<run_id>/ 
 _run_provenance = None
 
 onstart:
