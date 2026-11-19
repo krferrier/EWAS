@@ -16,8 +16,6 @@ rule make_bed:
         "../envs/dmr.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript {input.script} \
         --results {input.in_file} \
@@ -47,8 +45,6 @@ rule run_dmr:
         "../envs/dmr.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         comb-p pipeline \
 		--seed {params.min_p} \
@@ -69,10 +65,6 @@ rule run_dmr:
         """
 
 rule fetch_cpg_island_cache:
-    # UCSC CpG-island track, split out of the DMR cache so the CpG-level EWAS
-    # annotation can depend on it without also pulling refGene and the HGNC
-    # BigBed. Both the EWAS and DMR outputs therefore report islands, shores
-    # and shelves under one definition, refreshed by the same cache_tag.
     output:
         cpg_txt = CW.dmr_cpg_island_txt,
         cpg_bed = CW.dmr_cpg_island_bed,
@@ -172,8 +164,6 @@ rule annotate_dmrs:
         "../envs/dmr.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         Rscript scripts/dmr_annotation.R \
             --dmr-regions {input.dmr_regions_p} \
@@ -186,24 +176,6 @@ rule annotate_dmrs:
         """
 
 rule plot_dmrs:
-    # The manhattan plot is the tracked output. With dmr_plots.make_zoom: "yes"
-    # the script additionally writes one locus-zoom plot and one refGene gene
-    # table per cluster of significant regions, and with make_combined: "yes" a
-    # combined multi-panel figure.
-    #
-    # Those extra files are deliberately NOT declared as outputs: comb-p may
-    # find no regions, and the number of clusters cannot be known until it has
-    # run. They are side outputs of a rule whose primary output IS tracked, so
-    # Snakemake still reruns this rule when the region calls change.
-    #
-    # Because they are untracked, Snakemake will not clean them up, and stale
-    # zoom plots from an earlier run would otherwise sit alongside current ones
-    # with no way to tell them apart. The shell clears them first.
-    #
-    # Settings not listed here keep scripts/dmr_plot.R's own defaults
-    # (point jitter, zoom midlines, gene label size, combined figure
-    # dimensions, panel label size) -- they are cosmetic and were previously
-    # duplicated in this rule at exactly the script's default values.
     input:
         slk = rules.run_dmr.output.slk,
         dmr_regions_p = rules.run_dmr.output.regions_p
@@ -226,8 +198,6 @@ rule plot_dmrs:
         "../envs/ewas.yaml"
     shell:
         """
-        # Everything below -- stdout and stderr of every command -- goes to the
-        # rule's log. Snakemake names the log in its error report if a job fails.
         exec >{log} 2>&1
         rm -f "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.jpg \
               "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.refGene_genes.tsv \
