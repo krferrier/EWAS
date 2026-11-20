@@ -4,8 +4,8 @@
 #
 # The sets are bit-packed and row-aligned to <platform>.ordering.tsv.gz, so the
 # query is built as a yame format-6 record: two bits per probe, one marking the
-# universe (tested) and one marking the set (significant). yame summary then
-# reports the 2x2 per knowledgebase record against that universe, and the
+# full set of tested CpGs and one marking the significant set identified by the EWAS. 
+# yame summary then reports the 2x2 per knowledgebase record against the full set, and the
 # hypergeometric p-value and FDR are computed here.
 
 suppressPackageStartupMessages({
@@ -34,8 +34,8 @@ parser$add_argument('--qc-sets', default = "",
                                  "biological ones. They are tested and",
                                  "reported in the same table, tagged",
                                  "role = 'qc', and plotted separately:",
-                                 "enrichment in one of these says the hit list",
-                                 "tracks array design rather than biology."))
+                                 "enrichment in one of these suggests an",
+                                 "array design artifact rather than biology."))
 parser$add_argument('--sets', default = "all",
                     help = paste("Comma-separated KYCG set names to test, or",
                                  "'all' for every .cm in --kycg-dir. Named",
@@ -71,7 +71,7 @@ if (length(cm_files) == 0L) {
 }
 
 # Restrict to the requested sets. A requested set that is absent is reported
-# and skipped rather than fatal: a platform need not publish every set.
+# and skipped rather than fatal.
 if (!identical(tolower(trimws(args$sets)), "all")) {
     want <- trimws(strsplit(args$sets, ",", fixed = TRUE)[[1]])
     want <- want[nzchar(want)]
@@ -111,7 +111,7 @@ fwrite(data.table(S = as.integer(in_fg), U = as.integer(in_bg)),
        tmp_txt, sep = "\t", col.names = FALSE)
 system2("yame", c("pack", "-f", "d", shQuote(tmp_txt), shQuote(tmp_cx)))
 
-# --- summarize against every knowledgebase ---
+# --- summarize against all knowledgebase ---
 collected <- list()
 for (cm in cm_files) {
     kb <- sub("\\.cm$", "", basename(cm))
@@ -136,9 +136,9 @@ if (length(collected) == 0L) {
 
 all <- rbindlist(collected, fill = TRUE)
 
-# Tag each row biological or qc. The role does not change the testing family --
-# that is the knowledgebase -- it only decides which figure a row appears in.
-# "NONE" is the sentinel the rule passes when no QC sets are configured; an
+# Tag each row biological or qc. The role does not change the testing family 
+# (the knowledgebase), it only decides which figure a row appears in.
+# "NONE" is the rule passed when no QC sets are configured; an
 # empty string cannot be handed through the shell command cleanly.
 .qc <- if (identical(toupper(trimws(args$qc_sets)), "NONE")) character(0) else
     trimws(strsplit(args$qc_sets, ",", fixed = TRUE)[[1]])
@@ -147,8 +147,8 @@ all[, role := fifelse(knowledgebase %in% .qc, "qc", "biological")]
 setnames(all, c("Mask", "N_univ", "N_query", "N_mask", "N_overlap"),
          c("feature", "n_universe", "n_significant", "n_in_feature", "n_overlap"))
 
-# Drop features too small to test, and the NA/unassigned bucket the state
-# knowledgebases carry, which is an absence of annotation rather than a feature.
+# Drop features too small to test, and the NA/unassigned bucket
+# knowledgebases may have, which is an absence of annotation rather than a feature.
 # fread parses a literal "NA" mask name as missing, so both forms are dropped.
 all <- all[n_in_feature >= args$min_set_size &
            !is.na(feature) & !feature %in% c("NA", "", ".")]
@@ -171,15 +171,9 @@ all[, neg_log10_p := .ht$neg_log10_p]
 # Each knowledgebase is a separate enrichment analysis, so the FDR is computed
 # within one, never pooled across all of them. Pooling would make the FDR for
 # a chromatin state depend on how many TF motifs happened to be tested
-# alongside it, and would let one large set (TFBSrm is 1188 motifs) spend the
-# power the others need. knowYourCG::testEnrichment does the same -- its
-# mtc_by_group defaults to TRUE and splits on the knowledgebase group. There
-# is deliberately no option to pool: it is not a defensible choice here.
-#
-# The consequence is that q-values from families of very different sizes are
-# not one ranking: a motif needs stronger evidence than a chromatin state to
-# reach the same FDR. n_tested_in_kb records each family's size so that is
-# visible in the table.
+# alongside it, and would let one large set (TFBSrm is 1188 motifs) dominate
+# the statistical power. knowYourCG::testEnrichment does the same -- its
+# mtc_by_group defaults to TRUE and splits on the knowledgebase group.
 all[, n_tested_in_kb := .N, by = knowledgebase]
 all[, c("fdr", "neg_log10_fdr") := {
         b <- bh_log(log_p)
