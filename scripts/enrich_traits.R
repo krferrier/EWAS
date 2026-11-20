@@ -47,7 +47,7 @@ if (length(sets$foreground) == 0L) {
 }
 
 # The Atlas table is not valid UTF-8 (some trait names carry Latin-1 bytes),
-# so read it as Latin-1 and convert rather than letting fread mangle it.
+# so read it as Latin-1 and convert.
 atlas <- fread(args$ewas_atlas, sep = "\t", quote = "",
                select = c("probe_ID", "trait", "study_ID", "PMID"),
                encoding = "Latin-1", showProgress = FALSE)
@@ -56,8 +56,8 @@ atlas <- atlas[!is.na(probe_ID) & nzchar(trait)]
 message(sprintf("EWAS Atlas: %d associations, %d probes, %d traits",
                 nrow(atlas), uniqueN(atlas$probe_ID), uniqueN(atlas$trait)))
 
-# Restrict the Atlas to probes this analysis actually tested, so the universe
-# is the same one used for the other enrichment rules.
+# Restrict the Atlas to probes this analysis actually tested, so the background
+# is the same as for the other enrichment rules.
 bg <- unique(sets$background)
 fg <- unique(sets$foreground)
 atlas <- atlas[probe_ID %in% bg]
