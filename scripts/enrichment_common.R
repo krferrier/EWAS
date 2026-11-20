@@ -1,10 +1,10 @@
 # Shared helpers for the enrichment rules.
 #
 # One rule about the background set is enforced here rather than left to each
-# script: the universe is always the CpGs that were actually tested, never the
+# script: the background is always the CpGs that were actually tested, never the
 # full array manifest. Probes are dropped before an EWAS for mapping quality,
 # masking and QC, and those exclusions are not uniform across the genome --
-# testing against the whole array would score that removal pattern as
+# testing against the whole array would show that removal pattern as
 # enrichment.
 
 suppressPackageStartupMessages({
@@ -61,7 +61,7 @@ read_cpg_sets <- function(results_file, stratified, significance, threshold) {
 #' Write an empty results table with the expected header.
 #'
 #' A skipped analysis still produces its output file so the workflow does not
-#' fail and the reason is visible in the file itself.
+#' fail and the reason is written in the file.
 write_empty_result <- function(path, columns, reason) {
     empty <- setNames(data.table(matrix(character(0), ncol = length(columns))),
                       columns)
@@ -72,21 +72,18 @@ write_empty_result <- function(path, columns, reason) {
 #' Hypergeometric over-representation test from 2x2 counts.
 #'
 #' Tests over-representation only (upper tail): a set depleted in the
-#' significant CpGs is not evidence of biological depletion here, because the
+#' significant CpGs is not evidence of biological depletion here because the
 #' foreground is defined by a p-value cutoff rather than by sampling.
 #' Returns a list of `p_value` and `neg_log10_p`.
 #'
-#' The test is evaluated with log.p = TRUE and exponentiated afterwards, rather
-#' than read off the linear scale directly. This is not a micro-optimisation: a
-#' strong enrichment over a large feature genuinely produces p-values below the
-#' smallest positive double (~1e-308), where the linear result collapses to
-#' exactly 0 and the ranking among the top hits is destroyed. For example, 1400
-#' of 2000 significant CpGs falling in a feature covering 6507 of 50000 tested
-#' CpGs gives p = 1e-802: representable as a log, not as a double.
+#' The test is evaluated with log.p = TRUE and exponentiated afterwards rather
+#' than read off the linear scale directly. A strong enrichment over a large 
+#' feature can genuinely produce p-values below the smallest positive double 
+#' (~1e-308), where the linear result collapses to exactly 0. This messes up
+#' the ranking among the top hits.
 #'
-#' `p_value` is therefore allowed to underflow to 0 in the output table -- that
-#' is what a p-value column can express -- while `neg_log10_p` carries the exact
-#' magnitude and is what the plots should use.
+#' `p_value` is therefore allowed to underflow to 0 in the output table,
+#' while `neg_log10_p` has the exact magnitude.
 hyper_test <- function(n_overlap, n_query, n_mask, n_univ) {
     log_p <- stats::phyper(n_overlap - 1L, n_mask, n_univ - n_mask, n_query,
                            lower.tail = FALSE, log.p = TRUE)
@@ -98,10 +95,9 @@ hyper_test <- function(n_overlap, n_query, n_mask, n_univ) {
 #' `p.adjust(method = "BH")` cannot be used here: its input is linear p-values,
 #' so any p that has underflowed to 0 gives an FDR of exactly 0, and -log10(0)
 #' is Inf. Since the plots put -log10(FDR) on the x axis (the knowYourCG
-#' convention), the FDR needs the same treatment the p-value already gets.
+#' convention), the FDR needs the same adjustment as the p-value above.
 #'
-#' BH is order statistics and one multiplication, both of which are exact in
-#' logs: adjusted_(i) = min over j >= i of (n / j) * p_(j), which becomes
+#' BH is: adjusted_(i) = min over j >= i of (n / j) * p_(j), which becomes
 #' log n - log j + log p_(j), followed by a running minimum from the largest
 #' p-value down and a clamp at log(1) = 0.
 #'
