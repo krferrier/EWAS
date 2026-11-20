@@ -2,38 +2,26 @@
 #
 # One summary plot per enrichment analysis, in one of two geometries.
 #
-# KYCG features use the shape of knowYourCG::KYCG_plotEnrichAll: every tested
-# knowledgebase gets a block along the x axis, its hits sit above it, y is
-# -log10(FDR) and point size is the effect size. Because each knowledgebase
-# occupies its own block, nothing in the figure implies a ranking ACROSS
-# knowledgebases -- which is what per-knowledgebase FDR correction requires,
-# and which a single pooled ranking would have implied. Sets with no hits keep
-# their block, so "tested and found nothing" is visible rather than absent.
+# Similar plotting to knowYourCG::KYCG_plotEnrichAll: every tested
+# knowledgebase has a block along the x axis and y is -log10(FDR).
+# Point size is the effect size. Sets with no hits still have a
+# block, so "tested and found nothing" is visible.
 #
 # GO/KEGG terms and EWAS Atlas traits use a dot plot of the top N, with
-# -log10(FDR) on the x axis, point size and transparency carrying how many
+# -log10(FDR) on the x axis, point size and transparency showing how many
 # CpGs or genes drive the result, and solid versus hollow points separating
 # what passes FDR from what does not.
 #
 # The plot is ALWAYS written, including when the enrichment table is empty or
-# nothing reached significance -- it then carries a panel saying so. This keeps
-# the output trackable by Snakemake, and matches how the enrichment rules write
-# an empty table naming the reason rather than failing the workflow.
-#
-# Non-significant terms are shown rather than dropped, because "the top hit was
-# only p = 0.2" is a useful thing to see. Hollow points mark them, so a plot
-# with no solid points is a plot with no findings.
+# nothing reached significance. This keeps the output trackable by Snakemake. 
+# The same solid versus hollow dots to show significance is used.
 
 suppressPackageStartupMessages({
     library(argparse)
     library(data.table)
     library(dplyr)
     library(ggplot2)
-    # Label placement for the feature plots; the dot-plot kinds do not need it.
     library(ggrepel)
-    # element_markdown(), for axis labels coloured to match their block. A
-    # vector of colours passed to element_text() also works today, but ggplot2
-    # warns that vectorised input is not officially supported and may change.
     library(ggtext)
 })
 
@@ -55,20 +43,7 @@ parser$add_argument('--label-width', type = "integer", default = 55L,
 parser$add_argument('--output', required = TRUE)
 args <- parser$parse_args()
 
-# How each table names its label, grouping and count columns, and what one
-# count actually is. Keep in step with the OUT_COLS in the enrich_* scripts.
-#
-# `geom` picks the geometry: "enrichall" for the KYCG features, "dot" for the
-# pathway and trait tables.
-#
-# `facet` matters statistically, not just visually. enrich_pathways.R calls
-# gometh once per collection and keeps each collection's own FDR, so GO and
-# KEGG are SEPARATE testing families -- and GO carries some 22,000 terms
-# against KEGG's ~350, so a pooled top N is GO-dominated and hides KEGG
-# entirely. Those get one panel each, with top N taken within each. The
-# feature table is corrected per knowledgebase for the same reason, but with
-# up to 17 of them faceting is unreadable, so it uses the enrichall geometry
-# instead: one block per knowledgebase along the x axis.
+# Define specs aligned with the OUT_COLS in the enrich_* scripts.
 SPEC <- list(
     features = list(
         geom = "enrichall", role = "biological",
@@ -76,10 +51,8 @@ SPEC <- list(
         count = "n_overlap",
         unit = "CpGs", axis = "Feature",
         title = "KYCG feature enrichment", colour = "#1B9E77"),
-    # The design and QC knowledgebases, kept out of the biological figure.
-    # Enrichment here is not a finding about biology: it says the hit list
-    # tracks array design, artefact-prone regions or CpG density. An empty
-    # version of this plot is the good outcome.
+    # The design and QC knowledgebases are plotted separately from
+    # biological knowledgebases.
     features_qc = list(
         geom = "enrichall", role = "qc",
         label = "feature", group = "knowledgebase", facet = NULL,
@@ -100,8 +73,7 @@ SPEC <- list(
 )
 spec <- SPEC[[args$kind]]
 
-#' Wrap long labels without pulling in stringr; base strwrap is equivalent and
-#' the other plotting scripts in this workflow do not depend on it either.
+#' Wrap long labels
 wrap_labels <- function(x, width) {
     vapply(as.character(x), function(s) {
         if (is.na(s) || !nzchar(s)) return("(unnamed)")
@@ -109,7 +81,7 @@ wrap_labels <- function(x, width) {
     }, character(1), USE.NAMES = FALSE)
 }
 
-#' Placeholder used when there is nothing to plot, so the output always exists.
+#' Placeholder used when there is nothing to plot.
 write_placeholder <- function(path, title, reason) {
     p <- ggplot() +
         annotate("text", x = 0, y = 0.15, label = title,
@@ -125,14 +97,13 @@ write_placeholder <- function(path, title, reason) {
     message("Wrote placeholder plot: ", reason)
 }
 
-# Display order for the knowledgebase blocks, grouped so that sets carrying
-# related information sit next to each other: the two chromatin-state models
-# beside the histone marks they are called from, the two repeat resolutions
-# together, and so on. Alternating shading follows these groups rather than
-# individual blocks, which is what makes the grouping visible.
+# Display order for the knowledgebase blocks, grouped so that sets showing
+# related information are adjacent: the two chromatin-state models
+# beside the histone marks, the two repeat resolutions together, and so on. 
+# Alternate shading occurs between these groups.
 #
-# A set not listed here -- MSA publishes 15 that EPIC does not -- is appended in
-# an "other" group, alphabetically, so an unfamiliar set is never dropped.
+# A set not listed here (MSA has 15 features that EPIC does not) is appended in
+# an "other" group, alphabetically.
 KB_GROUPS <- list(
     `chromatin state`   = c("ChromHMM", "REMCChromHMM", "ChromHMMfullStack", "HM"),
     `protein binding`   = c("TFBSrm", "TFBSconsensus", "CTCFbind"),
@@ -147,9 +118,7 @@ KB_GROUPS <- list(
 #' One block per tested knowledgebase along x, -log10(FDR) on y.
 #'
 #' After knowYourCG::KYCG_plotEnrichAll. Block width grows with log(set size)
-#' so a 1188-member set does not swallow the axis and a 2-member set stays
-#' findable, and every tested knowledgebase keeps its block whether or not it
-#' has hits.
+#' so a large feature set does not dominate the axis.
 plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     N_LABEL <- 14
 
@@ -181,21 +150,17 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
                               tail(as.character(.kb), -1), 1, 0))]
     dt[, .xpos := cumsum(.inc + .step)]
 
-    # Every enriched feature is drawn, not a top N per knowledgebase: the
-    # solid/hollow encoding is what separates the significant from the rest, so
-    # thinning the points would only hide the distribution the reader is being
-    # asked to judge -- how far into a knowledgebase the signal goes, and where
-    # it stops. args$top_n therefore governs the dot-plot kinds only.
+    # Every enriched feature is shown: the solid/hollow encoding is what 
+    # shows significant vs not.
     #
     # Features with fold enrichment <= 1 are left out. The hypergeometric here
     # is one-sided (phyper lower.tail = FALSE), so depletion is not tested and
-    # such a feature carries no evidence either way; drawing it would add a
-    # point that cannot be interpreted.
+    # such a feature carries no evidence either way.
     pts <- dt[fold_enrichment > 1]
     n_sig <- pts[fdr < args$fdr_threshold, .N]
     pts[, .y := neg_log10_fdr]
-    # A factor carrying BOTH levels, so the shape guide always explains solid
-    # against hollow even when every drawn point falls on one side.
+    # A factor carrying BOTH levels, so the legend explaining solid
+    # vs hollow is always shown in the output plot.
     pts[, .signif := factor(!is.na(fdr) & fdr < args$fdr_threshold,
                             levels = c(TRUE, FALSE))]
 
@@ -205,7 +170,7 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     setorder(blocks, middle)
     blocks[, lab := sprintf("%s (%d)", .kb, n)]
     # A one-feature set has beg == end, so its band would have zero width.
-    # Give every block a floor width, and split the gap between neighbours so
+    # Give every block a base width, and split the gap between neighbours so
     # the shading tiles the axis without overlapping.
     min_w <- 0.006 * max(1e-9, diff(range(dt$.xpos)))
     blocks[, half := pmax((end - beg) / 2, min_w)]
@@ -218,11 +183,9 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
     setorder(bands, rmin)
     bands[, shade := seq_len(.N) %% 2L == 0L]
 
-    # Colours are taken explicitly rather than left to the default scale, so
+    # Colours are assigned explicitly rather than left to the default scale so
     # the same values can colour the axis labels: the tick label under a block
-    # then matches the points above it. The labels are rendered as markdown by
-    # element_markdown() below, which is the supported way to colour them
-    # individually.
+    # then matches the points above it. 
     kb_cols <- scales::hue_pal()(nrow(blocks))
     names(kb_cols) <- as.character(blocks$.kb)
     blocks[, lab_md := sprintf("<span style='color:%s'>%s</span>",
@@ -236,22 +199,9 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
                   aes(xmin = rmin, xmax = rmax, ymin = -Inf, ymax = Inf),
                   fill = "grey92", colour = NA, alpha = 0.55,
                   inherit.aes = FALSE)
-    # No threshold line: every point drawn has already passed the threshold,
-    # so a line marking it would sit below the whole figure and explain
-    # nothing. There is no display cap either -- with at most top_n points per
-    # block the axis can simply run to the largest value.
     if (nrow(pts)) {
-        # The strongest hit in each knowledgebase, not the strongest N overall.
-        # Labelling the global top N puts every label inside whichever block is
-        # densest, where they collide with each other and with the points. One
-        # label per block spreads them across the axis, and it suits what this
-        # figure is for: which knowledgebases are enriched. Blocks are taken in
-        # order of their best FDR, so a platform publishing 30-odd sets still
-        # gets a readable number.
-        # Only significant hits are labelled: naming a knowledgebase's best
-        # near-miss would read as a finding. Guarded, because a run where
-        # nothing reached the threshold leaves this empty and max() on an
-        # empty vector warns and returns -Inf.
+        # Label the strongest, significant hit in each knowledgebase.
+        # Only significant hits are labelled.
         sig_pts <- pts[.signif == "TRUE"]
         labs_dt <- if (nrow(sig_pts)) {
             lab_kb <- sig_pts[, .(best = max(neg_log10_fdr)), by = .kb
@@ -261,9 +211,7 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
         } else {
             sig_pts[0]
         }
-        # Both levels always present in the key, with explicit glyphs: size is
-        # mapped to the data, so a level with no drawn point has nothing to
-        # draw from and would otherwise render as a bare label.
+        # layer so the hollow/filled legend is always created.
         key_layer <- geom_point(
             data = data.table(.xpos = pts$.xpos[1], .y = pts$.y[1],
                               .signif = factor(c(TRUE, FALSE),
@@ -300,25 +248,16 @@ plot_enrich_all <- function(dt, spec, args, plot_title, path) {
             drop = FALSE, name = NULL) +
         scale_size_continuous(range = c(1.5, 6),
                               name = expression(log[2] ~ "(odds ratio)")) +
-        # Neutral key glyphs: colour already encodes the knowledgebase, so a
-        # coloured shape key would read as a fourteenth group.
         guides(shape = guide_legend(
             override.aes = list(size = 2.5, alpha = 1, colour = "grey25"))) +
-        # Knowledgebase names are real axis labels, so they sit outside the
-        # panel where axis labels belong rather than being drawn into it, and
-        # are coloured to match their block's points.
+        # Knowledgebase axis labels are coloured to match their block's points.
         scale_x_continuous(breaks = blocks$middle, labels = blocks$lab_md,
                            expand = expansion(mult = 0.02)) +
         scale_y_continuous(breaks = y_breaks, expand = expansion(mult = 0.02)) +
-        # x limits come from the blocks, not from the drawn data. A block with
-        # no significant feature draws no point, and the band behind it is only
-        # drawn when its group is a shaded one -- so a trailing set with
-        # neither fell outside the data-driven panel range and lost its axis
-        # label entirely, silently dropping it from the figure.
+        # x limits come from the blocks, so feature sets with no significant
+        # points aren't dropped from the plot.
         coord_cartesian(xlim = c(min(bands$rmin), max(bands$rmax)),
                         ylim = c(0, y_top)) +
-        # Title only. Everything else about how to read this figure belongs in
-        # its legend, in the README, not printed into the image.
         labs(x = "Knowledgebase (features tested)",
              y = expression(-log[10] ~ "(FDR)"), title = plot_title) +
         theme_bw(base_size = 13) +
@@ -362,7 +301,7 @@ dt <- dt[!is.na(p_value) & is.finite(p_value)]
 
 # The feature table holds both the biological and the QC knowledgebases, so
 # each figure takes its own slice. A table written before the role column
-# existed is treated as all-biological.
+# was defined is treated as all-biological.
 if (!is.null(spec$role)) {
     if ("role" %in% names(dt)) {
         dt <- dt[role == spec$role]
@@ -413,27 +352,20 @@ if (faceted) {
 top[, .label := as.character(get(spec$label))]
 top[, .count := suppressWarnings(as.numeric(get(spec$count)))]
 top[, .count := fifelse(is.na(.count), 0, .count)]
-# A factor carrying BOTH levels, not a bare logical: the shape guide should
-# always show the solid/hollow meaning, including on a plot where every point
-# happens to be significant. drop = FALSE on the scale cannot keep a level that
-# a logical vector has no way to declare, so a one-sided plot would otherwise
-# get a one-entry legend that explains nothing.
+# A factor with both significant and non-significant levels so the legend
+# always shows the solid/hollow definition.
 top[, .signif := factor(!is.na(fdr) & fdr < args$fdr_threshold,
                         levels = c(TRUE, FALSE))]
 
 # A strong enrichment over a large feature can produce a p-value below the
 # smallest positive double, where p_value underflows to exactly 0 and
-# -log10(0) is Inf -- which ggplot drops silently, giving an empty panel with
-# a full legend.
+# -log10(0) is Inf -- which ggplot drops silently, giving an empty panel.
 #
 # enrich_features.R and enrich_traits.R therefore also emit neg_log10_p,
 # computed on the log scale, which is exact; use it when present. gometh
 # returns only a linear p-value, so the pathways table has no such column and
 # still needs the cap below.
-# The axis is -log10(FDR), following knowYourCG, whose KYCG_plotDot and
-# KYCG_plotBar both default to y = "-log10(FDR)". It also makes the figure
-# self-consistent: the threshold that decides solid vs hollow points sits on
-# the axis, marked with a reference line.
+# The axis is -log10(FDR), following knowYourCG plots.
 LOGP_CAP <- -log10(.Machine$double.xmin)
 if ("neg_log10_fdr" %in% names(top)) {
     top[, .logp := as.numeric(neg_log10_fdr)]
@@ -478,9 +410,6 @@ n_sig <- sum(top$.signif == "TRUE")
 # have underflowed, capping them puts every point on one vertical line and
 # hides the ranking, so plot effect size instead. The axis title says which
 # quantity is shown, so the two cases are never confused.
-#
-# With neg_log10_p present this is unreachable; it remains for the pathways
-# table, which carries only gometh's linear p-value.
 use_effect <- n_capped > nrow(top) / 2 && "fold_enrichment" %in% names(top)
 if (use_effect) {
     top[, .x := suppressWarnings(as.numeric(fold_enrichment))]
@@ -551,17 +480,10 @@ p <- ggplot(top, aes(x = .x, y = .wrapped, size = .count, alpha = .count)) +
                    sprintf("FDR >= %g", args$fdr_threshold)),
         drop = FALSE, name = NULL) +
     scale_alpha(range = c(0.65, 1), guide = "none") +
-    # Point size and alpha are data-mapped, so the key for a level with no rows
-    # in this plot has nothing to draw from and renders as a bare label. Fix
-    # the key glyphs explicitly. Colour is neutral when colour already encodes
-    # the knowledgebase, so the shape key cannot be read as a group.
     guides(shape = guide_legend(
         override.aes = list(size = 2.5, alpha = 1,
                             colour = if (has_groups) "grey25" else spec$colour))) +
     scale_size(range = c(1.5, 6), name = paste("Number of", spec$unit)) +
-    # Title only: how to read the figure belongs in its legend, not printed
-    # into the image. The counts that used to sit in the subtitle are still
-    # reported on stderr by the message() below, and are in the results table.
     labs(x = x_lab, y = spec$axis, title = plot_title) +
     theme_bw(base_size = 13) +
     theme(legend.position = "right",
@@ -573,7 +495,6 @@ if (has_groups) {
     p <- p + guides(colour = guide_legend(
         title = tools::toTitleCase(gsub("_", " ", spec$group)),
         override.aes = list(size = 2.5, alpha = 1, shape = 19)))
-    # Dark2 carries eight colours; fall back to viridis beyond that.
     p <- p + if (n_groups <= 8L) {
         scale_colour_brewer(palette = "Dark2")
     } else {
@@ -582,20 +503,6 @@ if (has_groups) {
 }
 
 if (faceted && uniqueN(top$.facet) > 1L) {
-    # facet_wrap, not facet_grid: facet_grid with rows only SHARES the x axis
-    # across panels, and GO p-values are routinely orders of magnitude smaller
-    # than KEGG's (they can underflow outright), which would crush the KEGG
-    # panel onto the axis origin and lose its ranking entirely. facet_wrap
-    # gives each panel its own x axis.
-    #
-    # Separate axes are also the honest choice here: each collection is
-    # corrected within itself, so the two panels are NOT directly comparable
-    # and should not share a scale that implies they are. Significance is read
-    # from the point fill, which is per-collection, not from the x position.
-    #
-    # The cost is equal panel heights even when one collection has fewer terms;
-    # proportional heights would need ggh4x::force_panelsizes, which is not
-    # worth a dependency for the cosmetics.
     p <- p + facet_wrap(~ .facet, ncol = 1, scales = "free")
 }
 
