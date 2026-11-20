@@ -7,16 +7,14 @@
 #                     and pinned by release tag. Columns: CpG_chrm, CpG_beg,
 #                     CpG_end, probe_strand, probeID, genesUniq, geneNames,
 #                     transcriptTypes, transcriptIDs, distToTSS.
-# CpG islands       : called here from the UCSC cpgIslandExt BED cached by
+# CpG islands       : called from the UCSC cpgIslandExt BED cached by
 #                     rules/dmr.smk. GENCODE v41 dropped the CGI and
 #                     CGIposition columns that v36 supplied, and Zhou's CGI
 #                     annotation was itself derived from this UCSC track, so
 #                     recomputing keeps the EWAS and DMR outputs consistent.
 # eQTM              : BIOS cis-eQTM table with HGNC-resolved GRCh38 symbols.
-#
-# SNP annotation is intentionally absent. Zhou's EPIC.hg38.commonsnp.tsv.gz has
-# no successor in the v8.1 release, and SNP-affected probes are expected to be
-# masked before the EWAS is run.
+
+
 # Import libraries
 suppressPackageStartupMessages({
     library(argparse)
@@ -96,10 +94,6 @@ eqtm_file <- args$eQTM_anno
 kycg_dir <- args$kycg_dir
 order_file <- args$probe_order
 
-# KYCG set prefix -> output column name. Must stay in step with
-# ConfigWizard.KYCG_FEATURE_SETS in helper_fxns.py, which decides what
-# rules/annotate.smk downloads. A set listed here but absent from the cache is
-# skipped, so the two lists going briefly out of step is not fatal.
 KYCG_FEATURE_SETS <- list(
     ChromHMM       = "chromHMM_state",
     PMD            = "PMD",
@@ -112,8 +106,7 @@ KYCG_FEATURE_SETS <- list(
 
 #' Assign each probe to a CpG island, shore, shelf, or open sea.
 #'
-#' Reproduces the CGI and CGIposition columns that Zhou's GENCODE v36 manifest
-#' carried and v41 dropped. Coordinates are 0-based half-open on both sides;
+#' Coordinates are 0-based half-open on both sides;
 #' foverlaps treats intervals as closed, so ends are decremented by one before
 #' the join. Where a probe falls in more than one zone, islands beat shores and
 #' shores beat shelves, and ties within a tier go to the nearest island.
@@ -174,17 +167,18 @@ assign_cpg_islands <- function(island_bed, probes, shore_bp, shelf_bp) {
 
 #' Read the KYCG feature sets into one probe-keyed table.
 #'
-#' The .cm files carry no probe IDs -- they are row-aligned to
-#' <platform>.ordering.tsv.gz -- and come in two packings, which `yame unpack -a`
+#' The .cm files carry no probe IDs. They are row-aligned to
+#' <platform>.ordering.tsv.gz and come in two packings, which `yame unpack -a`
 #' renders uniformly:
 #'   * a single column of state labels (ChromHMM, ImprintingDMR, Blacklist,
 #'     CTCFbind), used as the column value directly; and
 #'   * one 0/1 column per record (PMD, ABCompartment, rmsk1), collapsed to a
-#'     single label here. These are near-exclusive but not strictly so -- 326
-#'     EPIC probes carry more than one rmsk1 class -- so multiples are joined
-#'     with ";" rather than silently dropped.
+#'     single label. These are near-exclusive but not strictly so -- 326
+#'     EPIC probes have more than one rmsk1 class; multiples are joined
+#'     with ";".
 #'
-#' Any set a platform does not publish is simply absent and is skipped.
+#' Different methylation platforms have different feature sets available. 
+#' Only feature sets available for the platform are returned. 
 #'
 #' @return data.table keyed on cpgid, or NULL when nothing could be read.
 read_kycg_features <- function(kycg_dir, order_file, feature_names) {
@@ -224,9 +218,9 @@ read_kycg_features <- function(kycg_dir, order_file, feature_names) {
                     stop(sprintf("%d record names for %d columns",
                                  length(labels), ncol(tbl)))
                 }
-                # Record names live in the .cm.idx sidecar. Without it yame
+                # Check that record names are in the .cm.idx sidecar. Without it yame
                 # falls back to 1..N, which would put meaningless integers in
-                # the results, so refuse the set rather than degrade quietly.
+                # the results.
                 if (all(grepl("^[0-9]+$", labels))) {
                     stop(sprintf(paste("record names are bare indices -- the %s.cm.idx",
                                        "sidecar is missing from the cache"), prefix))
@@ -257,8 +251,8 @@ ewas <- fread(results)
 # Load gene / promoter annotation
 gene_anno <- fread(gene_file)
 if (!"probeID" %in% names(gene_anno)) {
-    # Zhou's own column documentation calls this Probe_ID; the shipped v41
-    # files use probeID. Accept either so a manifest refresh cannot break us.
+    # Zhou's column documentation calls this Probe_ID; the shipped v41
+    # files use probeID. Accept either.
     if ("Probe_ID" %in% names(gene_anno)) {
         setnames(gene_anno, "Probe_ID", "probeID")
     } else {
@@ -298,8 +292,8 @@ if (!is.null(kycg)) {
 
 # Guard against a platform mismatch between the EWAS results and the manifest.
 # Every Zhou platform manifest has the same columns, so a wrong
-# annotation.array_platform does not fail loudly -- it just joins nothing.
-# EPICv2 and MSA probe IDs also carry a design suffix (cg00000029_TC21), so a
+# annotation.array_platform will not cause an error.
+# EPICv2 and MSA probe IDs also have a design suffix (cg00000029_TC21), so a
 # matrix built with those suffixes stripped will not match either.
 result_ids <- if (stratified == "no" || stratified == "False") {
     ewas$cpgid
