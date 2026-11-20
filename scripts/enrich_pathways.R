@@ -1,14 +1,12 @@
 # GO and KEGG enrichment for the significant CpG set, via missMethyl.
 #
 # gometh/gsameth are used rather than a plain gene-set test on the mapped genes
-# because array probes are not distributed evenly across genes: a gene covered
-# by 80 probes is far more likely to pick up a significant CpG than one covered
-# by 3, and an uncorrected test reports that coverage as biology. missMethyl
-# models the probe-per-gene bias explicitly.
+# because array probes are not distributed evenly across genes and an
+# uncorrected test would reflect differences in coverage as biological significance.
+# missMethyl models the probe-per-gene bias explicitly.
 #
-# The cost is that missMethyl maps probes with Illumina's own annotation
-# packages, so it supports only 450K, EPIC and EPICv2. On any other platform
-# this script writes an empty table naming the reason rather than failing.
+# missMethyl only maps probes for the 450K, EPIC and EPICv2. An empty table
+# is output for any other platform.
 
 suppressPackageStartupMessages({
     library(argparse)
@@ -88,7 +86,7 @@ run_collection <- function(collection) {
             array.type = array_type,
             plot.bias = FALSE)
         res <- as.data.table(res, keep.rownames = "term_id")
-        # gometh calls the name column TERM for GO but Description for KEGG.
+        # gometh calls the name column 'TERM' for GO but 'Description' for KEGG.
         # Rename here, per collection: after rbindlist(fill = TRUE) the table
         # already has a TERM column (from GO), so a rename there would be
         # skipped and every KEGG name lost with the Description column.
