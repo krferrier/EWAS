@@ -60,10 +60,9 @@ if(stratified=="no" | stratified == "False"){
 }
 
 # comb-p needs every CpG to have a position, and the file sorted by chromosome
-# in plain character (C locale) order -- it stops with "chromosomes must be
-# sorted as characters" otherwise. dplyr::arrange() is not safe for this: before
-# dplyr 1.1 it sorted in the system locale, which puts "chr1_KI270711v1_random"
-# before "chr10", and the DMR environment carries such a dplyr. order(method =
+# in plain character (C locale) order. dplyr::arrange() v1.1 or older, which is
+# needed for the DMR environment, sorts in the system locale, which means
+# "chr1_KI270711v1_random" would be put before "chr10". order(method =
 # "radix") always sorts in C order, whatever the locale or package versions.
 # Plain data.frame: data.table's [ ] treats i and j differently from base R.
 res <- as.data.frame(res)
