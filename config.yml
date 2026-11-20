@@ -1,11 +1,9 @@
 # =============================================================================
 # EWAS + DMR workflow configuration
 #
-# Every setting is tagged so you know how much attention it needs:
-#
 #   [REQUIRED]  Describes your data or your question. Always set it.
 #   [CHECK]     Has a sensible default, but the right value depends on your
-#               study design. Read the note before accepting it.
+#               study design. Read the note and adjust as needed.
 #   [DEFAULT]   Leave alone unless something upstream has changed.
 #
 # Run from the repo root:  snakemake --configfile config.yml
@@ -19,9 +17,10 @@
 #        the sample ID (matching `pheno`), then one column per CpG. The probe
 #        IDs must match the array named in annotation.array_platform (see the
 #        note there about EPICv2/MSA suffixes). Keep the rows in the same order
-#        as `pheno`: the unstratified EWAS pairs them by position.
+#        as `pheno`.
 # pheno: one row per sample, with the association variable, any stratification
-#        variables, and all model covariates.
+#        variables, and all model covariates. First column is the sample ID,
+#        second is the association variable, followed by all other variables.
 mvals: "data/mvals.csv.gz"
 pheno: "data/pheno.csv"
 
@@ -61,17 +60,12 @@ window_size: 200
 region_filter: 0.05
 
 # DMR plotting. Only applies when dmr_analysis is "yes".
-# The manhattan plot is always produced. The two toggles below add files whose
-# NUMBER cannot be known in advance -- one locus-zoom plot plus one refGene
-# gene table per cluster of significant regions -- so they are not tracked by
-# Snakemake and are left off by default. Turn make_zoom on when you want to
-# look at individual regions; on a result with many significant regions it can
-# produce a lot of files. Stale zoom files from a previous run are cleared each
-# time plot_dmrs runs, so what you see always belongs to the current results.
+# The two toggles below determine whether locus-zoom plots per identified region
+# are made, and whether a pdf of the manhattan and all locus-zoom plots is 
+# compiled. By default these are set to 'no' as the number of significant regions 
+# cannot be known in advance, and the number of files created could be quite large. 
+# Turn make_zoom on when you want to look at individual regions.
 #
-# scripts/dmr_plot.R has further cosmetic options (point jitter, zoom
-# midlines, gene label size, combined figure dimensions, panel label size).
-# They are not surfaced here; edit the script's defaults if you need them.
 dmr_plots:
   # Locus-zoom plot + gene track per significant region cluster.         [CHECK]
   make_zoom: "no"
@@ -108,9 +102,7 @@ genome_build: "hg38"
 #   <cache_dir>/zhou/<array_platform>/<zhou_release>/   Zhou Infinium manifest
 #   <cache_dir>/ucsc/<genome_build>/<cache_tag>/        UCSC tracks
 #   <cache_dir>/eqtm/                                   BIOS eQTM + HGNC
-#
-# The whole block may be deleted; helper_fxns.ConfigWizard supplies these same
-# values as defaults. It is spelled out here so the provenance is visible.
+
 annotation:
   cache_dir: "resources/annotation"
 
@@ -118,9 +110,10 @@ annotation:
   # array_platform must match the probe IDs in `mvals`.               [REQUIRED]
   #   EPIC, HM450, HM27, Mammal40 -> bare IDs      (cg00000029)
   #   EPICv2, MSA                 -> suffixed IDs  (cg00000029_TC21)
-  # All platforms share the same 10-column manifest schema, but if your matrix
-  # has stripped the EPICv2/MSA suffix the join will silently miss; annotation.R
-  # warns when the match rate is low.
+  # All platforms share the same 10-column manifest schema. If your matrix has 
+  # stripped the EPICv2/MSA suffix the join will not fail, but the number of 
+  # CpGs with annotation information will be quite low. A warning is shown when
+  # the match rate is low.
   array_platform: "EPIC"
 
   # Git tag in zhou-lab/InfiniumAnnotationData. "main" tracks the latest
@@ -153,13 +146,13 @@ annotation:
 # -----------------------------------------------------------------------------
 # Functional enrichment of the significant CpG set
 # -----------------------------------------------------------------------------
-# Three independent tests, each writing its own table under <out>/enrichment/:
+# Three independent tests. A table for each is output in <out>/enrichment/:
 #   features  KYCG knowledgebases -- chromatin state, histone marks, TF binding,
 #             repeats, PMDs, A/B compartments (uses the same pinned v8.1 release
 #             as the annotation)
 #   pathways  GO and KEGG via missMethyl, which corrects for the number of
 #             probes per gene. Supports 450K, EPIC and EPICv2 only; on any other
-#             platform it writes an empty table naming the reason
+#             platform it writes an empty table
 #   traits    EWAS Atlas published trait associations
 #
 # The background for all three is the set of CpGs actually tested, never the
@@ -181,13 +174,12 @@ enrichment:
 
   # Which KYCG knowledgebases to test.                                   [CHECK]
   # The biological knowledgebases. On EPIC these 13 plus the four QC sets
-  # below are everything the platform publishes; other platforms publish more
-  # (MSA has 32, incl. tissue signatures, CoRSIVs, conservation), and any of
-  # them can be named here. Several overlap by construction -- REMCChromHMM
+  # below are everything available for the platform; other platforms may have 
+  # more or less (MSA has 32, incl. tissue signatures, CoRSIVs, conservation),
+  # Any can be specified here. Several overlap by construction -- REMCChromHMM
   # restates ChromHMM, HM is the data ChromHMM is called from, rmsk2 refines
   # rmsk1, CGI duplicates the CGIposition column -- so read them as
-  # corroborating rather than independent. Because each knowledgebase is
-  # corrected within itself, adding one costs the others nothing.
+  # corroborating rather than independent.
   #
   # See data/kycg_set_coverage.tsv for everything available per platform.
   #
@@ -212,32 +204,15 @@ enrichment:
 
   # Design and QC knowledgebases.                                        [CHECK]
   # Tested and written to the same results table, tagged role = "qc", but
-  # plotted separately in <assoc>_enrichment_features_qc.jpg. Enrichment in
-  # one of these is not a finding about biology -- it says the hit list tracks
-  # probe design, mappability or local CpG density, which is a reason to be
-  # careful with the other enrichment results. An empty QC plot is the good
-  # outcome. Set to "none" to skip them.
+  # plotted separately in <assoc>_enrichment_features_qc.jpg. 
+  # Set to "none" if you do not want these plots.
   qc_knowledgebases:
     - ProbeType         # type I vs type II chemistry
     - InfiniumChemistry # finer design partition, incl. colour channel
     - Blacklist         # ENCODE v2 artefact regions
     - nFlankCG          # local CpG density
 
-  # Summary dot plots in <out>/enrichment/.                              [CHECK]
-  # Four plots. The two KYCG ones (biological and QC) follow knowYourCG's
-  # KYCG_plotEnrichAll: one block per tested knowledgebase along the x axis,
-  # -log10(FDR) on y, point size the log2 odds ratio. Blocks rather than a
-  # single ranking because the FDR is computed within each knowledgebase, so
-  # q-values from a 2-feature and a 1188-feature set are not one ranking.
-  # The KYCG plots draw every enriched feature, with solid points passing the
-  # FDR threshold and hollow ones not, so `plot_top_n` does not apply to them.
-  # GO/KEGG and traits stay dot plots of the top `plot_top_n`, with point
-  # size and
-  # transparency carrying how many CpGs or genes drive each result, and solid
-  # versus hollow points separating what passes the FDR threshold above from
-  # what does not. Non-significant results are shown rather than dropped, so a
-  # plot with no solid points tells you there were no findings. The plot is
-  # written even when the table is empty -- it then says so.
+  # Summary plots in <out>/enrichment/.                              [CHECK]
   make_plots: "yes"
   plot_top_n: 10
 
