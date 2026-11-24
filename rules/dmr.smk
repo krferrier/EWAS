@@ -157,7 +157,8 @@ rule annotate_dmrs:
         cpgIslandExt = rules.fetch_cpg_island_cache.output.cpg_bed
     params:
         o_prefix = CW.dmr_out_dir,
-        assoc = CW.assoc_var
+        assoc = CW.assoc_var,
+        min_probes = CW.dmr_plot_min_probes
     output:
         CW.dmr_anno_final
     log:
@@ -174,7 +175,8 @@ rule annotate_dmrs:
             --refgene {input.refgene} \
             --cpgIslandExt {input.cpgIslandExt} \
             --out-dir {params.o_prefix} \
-            --assoc {params.assoc}
+            --assoc {params.assoc} \
+            --min-probes {params.min_probes}
         """
 
 rule plot_dmrs:
