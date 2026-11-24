@@ -1,6 +1,8 @@
 # Overview
 
 ---
+> **Version 2.0.** The previous stable release is available as tag [`v1.2`](https://github.com/krferrier/EWAS/tree/v1.2).
+
 This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by an Illumina Infinium methylation array. It was developed and tested against the EPIC (850k) array. The annotation step is platform-agnostic — every array Wanding Zhou has published annotation data for (EPIC, EPICv2, MSA, HM450, HM27, Mammal40, MM285) is available and can be specified via `annotation.array_platform`  in the `config.yaml`. Only EPIC has been executed and evaluated end to end, so treat the others as untested. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either a standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
 
 If your main predictor is categorical (with 2 levels), the values must be dummy coded to numerics. All other categorical covariates can remain as characters. The R glm() function is unable to use unordered categorical data as the main predictor because it cannot determine which of the values to use as the reference. The pipeline has not yet been tested with a main predictor that has more than two categorical levels. Automatic handling of predictors that are categorical/character values will be added in the next major update.
@@ -706,3 +708,12 @@ QQ plots are a scatterplot of the observed p-values against the expected p-value
 
 Often, the BACON adjustment does not drastically change the observed p-values compared with the unadjusted p-values and it can be difficult to assess visually whether the BACON adjustment 'worked'. The effect of the adjustment can more easily be discerned with a metric often referred to as the 'genomic inflation factor', or lambda (λ), which is a calculation of the deviation of the observed p-values from the expected p-values. A value of 1 indicates no inflation, while values greater than 1 indicate inflation and less than 1 indicate deflation. In general, the BACON adjustment should bring the λ closer to 1. The unadjusted λ ('lambda') and BACON-adjusted ('b-lambda') values can be found in the output results file ending in 'ewas_bacon_results'.
 
+# License
+
+This workflow is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and share it for any **non-commercial** purpose, including academic research, teaching, personal study, and use by non-profit, educational, public research, public health, or government organizations. **Commercial use is not permitted.** If you would like to use this workflow for a commercial purpose, please contact the author.
+
+The license covers the code in this repository only. Third-party tools and data that the workflow downloads, bundles, or calls (for example METAL, comb-p, BACON and other R/Bioconductor packages, the Zhou Infinium annotation manifests, UCSC tracks, and the BIOS eQTM data) are distributed under their own licenses and terms of use, which you must also follow.
+
+# Acknowledgements
+
+Claude Opus 5 and Claude Opus 5.5 (Anthropic) were used as AI assistants to help update the code and documentation (prose) for version 2.0 of this workflow. All AI-assisted changes to the code and prose have been reviewed, tested, and validated by the author, who takes full responsibility for the content of this repository.
