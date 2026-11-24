@@ -74,8 +74,10 @@ dmr_plots:
   make_combined: "no"
   combined_formats: "pdf"
 
-  # Minimum number of CpGs a region needs before it is highlighted and
-  # eligible for a zoom plot. 1 includes single-CpG regions.             [CHECK]
+  # Minimum number of CpGs a region needs. Passed to comb-p as
+  # --region-filter-n, so smaller regions are dropped from the region-level
+  # results, and also used for highlighting and zoom plots.
+  # 1 includes single-CpG regions.                                       [CHECK]
   min_probes: 2
   # Upper limit of the manhattan y axis; -1 lets the data set it.      [DEFAULT]
   max_y: -1

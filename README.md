@@ -254,8 +254,9 @@ once and shared across runs. METAL is built once into `software/metal/`. See
   distance lag, per-CpG p-values corrected for local correlation, and the same
   with FDR. The `.acf.txt` shows the distance over which
   neighbouring CpGs are correlated, which sets how regions get built.
-* The called regions, with and without region-level p-values, plus comb-p's own
-  manhattan plot.
+* The called regions, with and without region-level p-values. comb-p also draws
+  its own manhattan plot, but `run_dmr` deletes it; the workflow's DMR manhattan
+  plot comes from `plot_dmrs` (below).
 * The final annotated region table, with genes and CpG-island context attached,
   and a manhattan plot of those regions.
 
@@ -596,7 +597,7 @@ controls two optional additions.
 | make_zoom | "no" | Write a locus-zoom plot plus a refGene gene table per cluster of significant regions |
 | make_combined | "no" | Combine the manhattan and zoom plots into one multi-panel figure; needs `make_zoom: "yes"` |
 | combined_formats | "pdf" | Format for the combined figure |
-| min_probes | 2 | Minimum CpGs in a region before it is highlighted and eligible for a zoom plot |
+| min_probes | 2 | Minimum CpGs in a region. Passed to comb-p as `--region-filter-n`, so regions with fewer CpGs are dropped from the region-level results (`regions-p`), and also used as the threshold for highlighting and zoom plots |
 | max_y | -1 | Manhattan y-axis maximum; -1 lets the data set it |
 | zoom_padding | 2000 | bp of context on each side of a zoomed cluster |
 | cluster_gap | 3000 | Largest gap in bp between regions still grouped into one zoom window |

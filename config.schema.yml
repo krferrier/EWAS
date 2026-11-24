@@ -276,8 +276,9 @@ properties:
         type: integer
         minimum: 1
         description: >
-          Minimum CpGs in a region before it is highlighted and eligible for
-          a zoom plot.
+          Minimum CpGs in a region. Passed to comb-p as --region-filter-n, so
+          smaller regions are dropped from the region-level results, and also
+          used as the threshold for highlighting and zoom plots.
 
       max_y:
         type: number

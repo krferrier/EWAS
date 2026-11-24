@@ -31,7 +31,8 @@ rule run_dmr:
         o_prefix = CW.dmr_out_prefix,
         min_p = CW.min_pval,
         win_sz = CW.win_size,
-        region_filter = CW.region_filter
+        region_filter = CW.region_filter,
+        min_probes = CW.dmr_plot_min_probes
     output: 
         acf = CW.dmr_acf,
         args = CW.dmr_args,
@@ -51,7 +52,7 @@ rule run_dmr:
 		--dist {params.win_sz} \
 		-p {params.o_prefix} \
 		--region-filter-p {params.region_filter} \
-		--region-filter-n 2 \
+		--region-filter-n {params.min_probes} \
 		{input.in_file}
 
 		n_raw_regions=$(gzip -cd {output.regions} | awk 'NF {{ n++ }} END {{ print n + 0 }}')
