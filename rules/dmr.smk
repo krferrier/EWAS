@@ -1,4 +1,4 @@
-localrules: fetch_dmr_annotation_cache
+localrules: fetch_cpg_island_cache, fetch_dmr_annotation_cache
 
 rule make_bed:
     input: 
@@ -10,10 +10,13 @@ rule make_bed:
         assoc = CW.assoc_var
     output: 
         CW.dmr_results_bed
+    log:
+        CW.log_path("make_bed")
     conda:
         "../envs/dmr.yaml"
     shell:
         """
+        exec >{log} 2>&1
         Rscript {input.script} \
         --results {input.in_file} \
         --out-dir {params.o_dir} \
@@ -28,7 +31,8 @@ rule run_dmr:
         o_prefix = CW.dmr_out_prefix,
         min_p = CW.min_pval,
         win_sz = CW.win_size,
-        region_filter = CW.region_filter
+        region_filter = CW.region_filter,
+        min_probes = CW.dmr_plot_min_probes
     output: 
         acf = CW.dmr_acf,
         args = CW.dmr_args,
@@ -36,31 +40,70 @@ rule run_dmr:
         regions = CW.dmr_regions,
         regions_p = CW.dmr_regions_p,
         slk = CW.dmr_slk
+    log:
+        CW.log_path("run_dmr")
     conda:
         "../envs/dmr.yaml"
     shell:
         """
+        exec >{log} 2>&1
         comb-p pipeline \
 		--seed {params.min_p} \
 		--dist {params.win_sz} \
 		-p {params.o_prefix} \
 		--region-filter-p {params.region_filter} \
-		--region-filter-n 2 \
+		--region-filter-n {params.min_probes} \
 		{input.in_file}
 
 		n_raw_regions=$(gzip -cd {output.regions} | awk 'NF {{ n++ }} END {{ print n + 0 }}')
 		if [[ "$n_raw_regions" -eq 0 ]]; then
 		    gzip -n -c /dev/null > {output.regions_p}
 		fi
+
+		# comb-p always draws its own Manhattan plot of the region p-values; the
+		# workflow's DMR figure comes from plot_dmrs instead, so remove comb-p's to
+		# avoid two. -f: comb-p exits before plotting when it finds no regions.
+		rm -f {params.o_prefix}.manhattan.png
+        """
+
+rule fetch_cpg_island_cache:
+    output:
+        cpg_txt = CW.dmr_cpg_island_txt,
+        cpg_bed = CW.dmr_cpg_island_bed,
+        manifest = CW.cpg_island_manifest
+    params:
+        genome = CW.genome_build,
+        cache_tag = CW.dmr_anno_cache_tag,
+        ucsc_database_base = CW.ucsc_database_base
+    conda:
+        "../envs/dmr_annotation.yaml"
+    shell:
+        """
+        wget -O {output.cpg_txt}.tmp \
+          {params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz
+        mv {output.cpg_txt}.tmp {output.cpg_txt}
+
+        # cpgIslandExt fields:
+        # 1 bin, 2 chrom, 3 chromStart, 4 chromEnd, 5 name, ...
+        zcat {output.cpg_txt} \
+          | awk 'BEGIN{{FS=OFS="\t"}} {{print $2,$3,$4,$5}}' \
+          | sort -k1,1 -k2,2n \
+          | gzip -c > {output.cpg_bed}.tmp
+        mv {output.cpg_bed}.tmp {output.cpg_bed}
+
+        {{
+          echo -e "resource\tgenome_build\tcache_tag\tsource\tcreated"
+          echo -e "cpgIslandExt\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz\t$(date -Iseconds)"
+        }} > {output.manifest}
         """
 
 rule fetch_dmr_annotation_cache:
+    input:
+        cpg_bed = rules.fetch_cpg_island_cache.output.cpg_bed
     output:
         refgene_txt = CW.dmr_refgene_txt,
-        cpg_txt = CW.dmr_cpg_island_txt,
         hgnc_bb = CW.dmr_hgnc_bb,
         refgene_bed = CW.dmr_refgene_bed,
-        cpg_bed = CW.dmr_cpg_island_bed,
         hgnc_bed = CW.dmr_hgnc_bed,
         manifest = CW.dmr_annotation_manifest
     params:
@@ -77,10 +120,6 @@ rule fetch_dmr_annotation_cache:
           {params.ucsc_database_base}/{params.genome}/database/{params.gene_table}.txt.gz
         mv {output.refgene_txt}.tmp {output.refgene_txt}
 
-        wget -O {output.cpg_txt}.tmp \
-          {params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz
-        mv {output.cpg_txt}.tmp {output.cpg_txt}
-
         wget -O {output.hgnc_bb}.tmp \
           {params.ucsc_gbdb_base}/{params.genome}/hgnc/hgnc.bb
         mv {output.hgnc_bb}.tmp {output.hgnc_bb}
@@ -92,14 +131,6 @@ rule fetch_dmr_annotation_cache:
           | sort -k1,1 -k2,2n \
           | gzip -c > {output.refgene_bed}.tmp
         mv {output.refgene_bed}.tmp {output.refgene_bed}
-
-        # cpgIslandExt fields:
-        # 1 bin, 2 chrom, 3 chromStart, 4 chromEnd, 5 name, ...
-        zcat {output.cpg_txt} \
-          | awk 'BEGIN{{FS=OFS="\t"}} {{print $2,$3,$4,$5}}' \
-          | sort -k1,1 -k2,2n \
-          | gzip -c > {output.cpg_bed}.tmp
-        mv {output.cpg_bed}.tmp {output.cpg_bed}
 
         # UCSC HGNC BigBed fields:
         # 1 chrom, 2 chromStart, 3 chromEnd, 4 HGNC ID,
@@ -113,7 +144,6 @@ rule fetch_dmr_annotation_cache:
         {{
           echo -e "resource\tgenome_build\tcache_tag\tsource\tcreated"
           echo -e "{params.gene_table}\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/{params.gene_table}.txt.gz\t$(date -Iseconds)"
-          echo -e "cpgIslandExt\t{params.genome}\t{params.cache_tag}\t{params.ucsc_database_base}/{params.genome}/database/cpgIslandExt.txt.gz\t$(date -Iseconds)"
           echo -e "hgnc_bigbed\t{params.genome}\t{params.cache_tag}\t{params.ucsc_gbdb_base}/{params.genome}/hgnc/hgnc.bb\t$(date -Iseconds)"
         }} > {output.manifest}
         """
@@ -124,16 +154,20 @@ rule annotate_dmrs:
         ewas_bed = rules.make_bed.output,
         hgnc = rules.fetch_dmr_annotation_cache.output.hgnc_bed,
         refgene = rules.fetch_dmr_annotation_cache.output.refgene_bed,
-        cpgIslandExt = rules.fetch_dmr_annotation_cache.output.cpg_bed
+        cpgIslandExt = rules.fetch_cpg_island_cache.output.cpg_bed
     params:
         o_prefix = CW.dmr_out_dir,
-        assoc = CW.assoc_var
+        assoc = CW.assoc_var,
+        min_probes = CW.dmr_plot_min_probes
     output:
         CW.dmr_anno_final
+    log:
+        CW.log_path("annotate_dmrs")
     conda:
         "../envs/dmr.yaml"
     shell:
         """
+        exec >{log} 2>&1
         Rscript scripts/dmr_annotation.R \
             --dmr-regions {input.dmr_regions_p} \
             --ewas-bed {input.ewas_bed} \
@@ -141,7 +175,8 @@ rule annotate_dmrs:
             --refgene {input.refgene} \
             --cpgIslandExt {input.cpgIslandExt} \
             --out-dir {params.o_prefix} \
-            --assoc {params.assoc}
+            --assoc {params.assoc} \
+            --min-probes {params.min_probes}
         """
 
 rule plot_dmrs:
@@ -150,30 +185,39 @@ rule plot_dmrs:
         dmr_regions_p = rules.run_dmr.output.regions_p
     params:
         o_prefix = CW.dmr_out_dir,
-        assoc = CW.assoc_var
+        assoc = CW.assoc_var,
+        genome = CW.genome_build,
+        min_probes = CW.dmr_plot_min_probes,
+        max_y = CW.dmr_plot_max_y,
+        make_zoom = CW.dmr_make_zoom,
+        zoom_padding = CW.dmr_zoom_padding,
+        cluster_gap = CW.dmr_cluster_gap,
+        make_combined = CW.dmr_make_combined,
+        combined_formats = CW.dmr_combined_formats
     output:
         CW.dmr_manhattan_plot
+    log:
+        CW.log_path("plot_dmrs")
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        exec >{log} 2>&1
+        rm -f "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.jpg \
+              "{params.o_prefix}/{params.assoc}_dmr_zoom_cluster_"*.refGene_genes.tsv \
+              "{params.o_prefix}/{params.assoc}_dmr_combined."*
+
         Rscript scripts/dmr_plot.R \
             --slk-file {input.slk} \
             --regions-file {input.dmr_regions_p} \
             --out-dir {params.o_prefix} \
             --assoc {params.assoc} \
-            --min-probes 2 \
-            --max-y -1 \
-            --make-zoom no \
-            --zoom-padding 2000 \
-            --cluster-gap 3000 \
-            --point-jitter-bp 25 \
-            --zoom-midlines yes \
-            --genome-build hg38 \
-            --gene-label-size 3.0 \
-            --make-combined no \
-            --combined-formats pdf \
-            --combined-width-cm 18.3 \
-            --combined-region-height-cm 10 \
-            --panel-label-size 16
+            --genome-build {params.genome} \
+            --min-probes {params.min_probes} \
+            --max-y {params.max_y} \
+            --make-zoom {params.make_zoom} \
+            --zoom-padding {params.zoom_padding} \
+            --cluster-gap {params.cluster_gap} \
+            --make-combined {params.make_combined} \
+            --combined-formats {params.combined_formats}
         """

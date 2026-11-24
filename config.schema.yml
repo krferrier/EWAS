@@ -80,24 +80,63 @@ properties:
 
   annotation:
     type: object
+    description: >
+      Every annotation resource the workflow downloads, sharing one cache root.
+      All keys have defaults in helper_fxns.ConfigWizard, so a minimal config
+      may omit the whole block.
     properties:
-      method:
-        type: string
-        enum:
-          - local
-        description: "Annotation-cache method."
-
-      gene_table:
+      cache_dir:
         type: string
         minLength: 1
-        description: "UCSC gene table used for nearby-gene annotation."
+        description: >
+          Single cache root. Subdivided by source: zhou/<platform>/<release>,
+          ucsc/<genome>/<cache_tag>, and eqtm/.
 
       cache_tag:
         type: string
         pattern: "^(latest|[0-9]{4}-[0-9]{2}-[0-9]{2})$"
         description: >
-          Annotation-cache version. Use 'latest' during development or an
+          UCSC track cache version. Use 'latest' during development or an
           ISO date such as 2026-06-08 for a fixed reproducible release.
+
+      array_platform:
+        type: string
+        enum:
+          - EPIC
+          - EPICv2
+          - MSA
+          - HM450
+          - HM27
+          - Mammal40
+          - MM285
+        description: >
+          Infinium platform whose Zhou annotation manifest is fetched. All
+          platforms share the same 10-column manifest schema, but EPICv2 and
+          MSA probe IDs carry a design suffix (cg00000029_TC21).
+
+      zhou_release:
+        type: string
+        pattern: "^(main|v[0-9]+(\\.[0-9]+)?)$"
+        description: >
+          Git tag in zhou-lab/InfiniumAnnotationData. Use 'main' to track the
+          latest release or a tag such as v8.1 to freeze it.
+
+      gencode_release:
+        type: string
+        minLength: 1
+        description: >
+          GENCODE release in the manifest filename. Genome specific: hg38 uses
+          v41, hg19 uses v26lift37, mouse mm10 uses vM25 and mm39 vM31.
+
+      zhou_raw_base:
+        type: string
+        pattern: "^https://.+"
+        description: "Base URL for raw downloads from the Zhou annotation repo."
+
+      gene_table:
+        type: string
+        minLength: 1
+        description: "UCSC gene table used for DMR nearby-gene annotation."
 
       ucsc_database_base:
         type: string
@@ -109,21 +148,156 @@ properties:
         pattern: "^https://.+"
         description: "Base URL for UCSC gbdb downloads."
 
+      bios_eqtm_url:
+        type: string
+        pattern: "^https://.+"
+        description: "URL for the BIOS cis-eQTM CpG-level table."
+
       hgnc_complete_set_url:
         type: string
         pattern: "^https://.+"
         description: "URL for the HGNC complete gene-set download."
 
-    required:
-      - method
-      - gene_table
-      - cache_tag
-      - ucsc_database_base
-      - ucsc_gbdb_base
-      - hgnc_complete_set_url
+    additionalProperties: false
 
-    # Keep permissive initially in case you later add annotation settings.
-    additionalProperties: true
+  # Functional enrichment of the significant CpG set
+  enrichment:
+    type: object
+    description: >
+      Feature, pathway and trait enrichment. All keys have defaults in
+      helper_fxns.ConfigWizard, so the block may be omitted.
+    properties:
+      run:
+        type: string
+        enum: ["yes", "no"]
+        description: "Whether to run the enrichment rules at all."
+
+      significance:
+        type: string
+        enum:
+          - fdr
+          - bonferroni
+          - nominal
+        description: >
+          How the significant CpG set is defined. 'fdr' applies
+          Benjamini-Hochberg, 'nominal' uses the raw p-value.
+
+      threshold:
+        type: number
+        exclusiveMinimum: 0
+        maximum: 1
+        description: "Cutoff applied to the adjusted (or raw) p-value."
+
+      min_set_size:
+        type: integer
+        minimum: 1
+        description: >
+          Ignore features, terms and traits with fewer than this many probes
+          in the background set.
+
+      knowledgebases:
+        description: >
+          KYCG knowledgebases tested for enrichment: a list of set names, or
+          the string "all" for everything the configured platform publishes.
+          Omit to use the built-in biological selection.
+        oneOf:
+          - type: string
+            enum: ["all"]
+          - type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              minLength: 1
+
+      qc_knowledgebases:
+        description: >
+          KYCG design/QC knowledgebases: tested and written to the same table
+          tagged role = "qc", but plotted separately. A list of set names, or
+          the string "none" to skip them. Omit to use the built-in selection.
+        oneOf:
+          - type: string
+            enum: ["none"]
+          - type: array
+            minItems: 1
+            uniqueItems: true
+            items:
+              type: string
+              minLength: 1
+
+      ewas_atlas_url:
+        type: string
+        pattern: "^https://.+"
+        description: "URL for the EWAS Atlas association table."
+
+      make_plots:
+        type: string
+        enum: ["yes", "no"]
+        description: >
+          Whether to write one summary dot plot per enrichment analysis. The
+          plot is produced even when nothing is significant.
+
+      plot_top_n:
+        type: integer
+        minimum: 1
+        description: "Number of results shown in each enrichment plot."
+
+    additionalProperties: false
+
+  # DMR plotting
+  dmr_plots:
+    type: object
+    description: >
+      Options for scripts/dmr_plot.R. All keys have defaults in
+      helper_fxns.ConfigWizard, so the block may be omitted. Only applies when
+      dmr_analysis is "yes".
+    properties:
+      make_zoom:
+        type: string
+        enum: ["yes", "no"]
+        description: >
+          Write a locus-zoom plot and a refGene gene table per cluster of
+          significant regions. These files are not tracked by Snakemake
+          because their number depends on how many regions comb-p finds.
+
+      make_combined:
+        type: string
+        enum: ["yes", "no"]
+        description: >
+          Write a combined multi-panel figure from the manhattan and zoom
+          plots. Only meaningful with make_zoom set to "yes".
+
+      combined_formats:
+        type: string
+        minLength: 1
+        description: "Output format(s) for the combined figure, e.g. pdf."
+
+      min_probes:
+        type: integer
+        minimum: 1
+        description: >
+          Minimum CpGs in a region. Passed to comb-p as --region-filter-n, so
+          smaller regions are dropped from the region-level results, and also
+          used as the threshold for highlighting and zoom plots.
+
+      max_y:
+        type: number
+        description: >
+          Upper limit of the manhattan y axis. -1 lets the data set it.
+
+      zoom_padding:
+        type: integer
+        minimum: 0
+        description: "bp of context on each side of a zoomed cluster."
+
+      cluster_gap:
+        type: integer
+        minimum: 0
+        description: >
+          Largest gap in bp between regions still grouped into one zoom
+          window.
+
+    additionalProperties: false
 
   # Parallelization
   chunk_size:
@@ -170,7 +344,6 @@ required:
   - window_size
   - region_filter
   - genome_build
-  - annotation
   - chunk_size
   - processing_type
   - workers

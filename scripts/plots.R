@@ -4,8 +4,22 @@ suppressPackageStartupMessages({
   library(data.table)
   library(ggplot2)
   library(cowplot)
-  library(QCEWAS)
 })
+
+# Genomic inflation factor (lambda): the median observed chi-square statistic
+# over its expected value under the null. Identical to QCEWAS::P_lambda
+# (QCEWAS 1.2-3, copied from its source), defined here so the environment does
+# not depend on QCEWAS: conda-forge's r-qcewas has no build newer than R 4.3,
+# while bioconductor-bacon >= 1.32 requires R >= 4.4, so the two cannot be
+# installed together. This was the only QCEWAS function the workflow used.
+p_lambda <- function(p) {
+    p <- p[!is.na(p)]
+    if (length(p) < 2L) {
+        stop("'p' does not contain sufficient non-missing values to calculate lambda")
+    }
+    median(qchisq(p, df = 1, lower.tail = FALSE)) / qchisq(0.5, 1)
+}
+
 
 # Define command line arguments
 parser <- argparse::ArgumentParser(description="Script for plotting ewas results")
@@ -36,19 +50,37 @@ assoc <- args$assoc
 # Read in annotated EWAS results
 ewas <- fread(results)
 
+# Chromosomes drawn on the Manhattan plot, in axis order. CHR is the position in
+# this vector (X = 23, Y = 24), found by matching rather than as.numeric(), which
+# turned X and Y into NA with a coercion warning and drew them as a block
+# labelled "NA" after chr22. Anything else -- chrM and unplaced or alt contigs
+# such as chrUn_KI270748v1 -- also gets NA and is left off the Manhattan plot
+# only; those CpGs stay in the QQ plot and in lambda, since they were tested.
+CHROMOSOMES <- c(as.character(1:22), "X", "Y")
+
 # Wrangle data for plotting
 if (stratified == "yes" | stratified == "True"){
   ewas <- ewas %>% 
     dplyr::select(MarkerName, CpG_chrm, CpG_beg, "P-value") %>% 
     rename("Pvalue" = "P-value") %>% 
-    mutate("CHR" = as.numeric(sub("chr", "", CpG_chrm)),
+    mutate("CHR" = match(sub("^chr", "", CpG_chrm), CHROMOSOMES),
            "MAPINFO" = CpG_beg)
 } else{
   ewas <- ewas %>% 
     dplyr::select(cpgid, CpG_chrm, CpG_beg, bacon.pval)%>% 
     rename(Pvalue = bacon.pval) %>% 
-    mutate(CHR = as.numeric(sub("chr", "", CpG_chrm)),
+    mutate(CHR = match(sub("^chr", "", CpG_chrm), CHROMOSOMES),
            MAPINFO = CpG_beg)
+}
+
+# CpGs on the Manhattan plot: a standard chromosome and a position.
+manh <- ewas %>% filter(!is.na(CHR), !is.na(MAPINFO))
+n_off <- nrow(ewas) - nrow(manh)
+if (n_off > 0) {
+  off <- ewas %>% filter(is.na(CHR) | is.na(MAPINFO)) %>%
+    count(chrom = ifelse(is.na(CpG_chrm) | CpG_chrm == "", "<no position>", CpG_chrm))
+  message(sprintf("Manhattan plot omits %d CpG(s) not on chr1-22, X or Y: %s",
+                  n_off, paste(sprintf("%s %d", off$chrom, off$n), collapse = ", ")))
 }
 
 #################################################################
@@ -57,7 +89,7 @@ if (stratified == "yes" | stratified == "True"){
 
 
 # Calculate the cumulative position of each chromosome
-chr.pos <- ewas %>% 
+chr.pos <- manh %>% 
   group_by(CHR) %>% 
   summarize(chr_len=max(as.numeric(MAPINFO))) %>% 
   mutate(tot=cumsum(chr_len)-chr_len) %>% 
@@ -65,24 +97,28 @@ chr.pos <- ewas %>%
 
 
 # Add cumulative position data to results
-ewas <- left_join(ewas, chr.pos, by = "CHR") %>% 
+manh <- left_join(manh, chr.pos, by = "CHR") %>% 
   arrange(CHR, as.numeric(MAPINFO)) %>% 
   mutate(POS = as.numeric(MAPINFO)+tot)
 
 
-x_axis <- ewas %>% group_by(CHR) %>% 
+x_axis <- manh %>% group_by(CHR) %>% 
   summarise(center = (max(POS) + min(POS))/2) 
 
-ewas %>% 
+manh %>% 
   filter(-log10(Pvalue)>1) %>% 
   ggplot(aes(x=POS, y=-log10(Pvalue))) +
   geom_point(aes(color=as.factor(CHR)), alpha = 0.8, size = 2) +
   scale_color_manual(values= rep(c("steelblue1", "steelblue4"), 
-                                 length.out = 23)) + 
-  scale_x_continuous(label = x_axis$CHR, breaks = x_axis$center,
+                                 length.out = length(CHROMOSOMES))) + 
+  scale_x_continuous(label = CHROMOSOMES[x_axis$CHR], breaks = x_axis$center,
                      guide = guide_axis(check.overlap = T), expand=c(0,0)) +
-  scale_y_continuous(expand = c(0,0),
-                     limits = c(1,28)) +
+  # Lower limit only. A fixed upper limit (this was 28) silently dropped every
+  # CpG with p < 1e-28 -- the strongest hits -- with nothing but ggplot's
+  # "Removed N rows ... outside the scale range" warning to show for it. The
+  # small top expansion keeps the highest point from being cut by the frame.
+  scale_y_continuous(expand = expansion(mult = c(0, 0.03)),
+                     limits = c(1, NA)) +
   geom_hline(yintercept = -log10(0.05/nrow(ewas)),
              linetype = 'solid',
              color = "red",
@@ -124,14 +160,20 @@ stat_qqplot <- function(mapping = NULL, data = NULL, geom = "point",
   )
 }
 
-lambda <- QCEWAS::P_lambda(ewas$Pvalue)
+lambda <- p_lambda(ewas$Pvalue)
 lambda_label <- paste0("lambda==", round(lambda, digits = 2))
 
 ggplot(ewas, aes(observed= Pvalue)) +
   stat_qqplot() +
   geom_abline(intercept = 0, slope = 1, color = "red") +
   theme_bw(base_size = 16) +
-  annotate("text", x=1, y=25, label = lambda_label, parse=T, size = 6)+
+  # Top-left corner of the panel, whatever the data range. -Inf/Inf place the
+  # label at the panel edge and take no part in setting the axis limits, so it
+  # neither drifts into the points nor stretches the axes; the old fixed y = 25
+  # pushed the y axis up to 25 on a run with no strong hits. hjust/vjust set
+  # the inset from the corner.
+  annotate("text", x = -Inf, y = Inf, label = lambda_label, parse = TRUE,
+           size = 6, hjust = -0.25, vjust = 1.4) +
   labs(y= expression(Observed ~ -log[10]("P-value")),
       x = expression(Expected ~ -log[10]("P-value"))) -> qq.plot
 

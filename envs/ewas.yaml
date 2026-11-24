@@ -9,6 +9,7 @@ dependencies:
   - r-essentials
   - r-biocmanager
   - bioconductor-bacon >=1.32.0
+  - yame >=1.40
   - bioconductor-biocparallel
   - r-argparse
   - r-qqman

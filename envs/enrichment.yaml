@@ -1,0 +1,20 @@
+name: enrichment
+channels:
+  - bioconda
+  - conda-forge
+  - r
+  - nodefaults
+dependencies:
+  - r-base
+  - r-argparse
+  - r-data.table
+  - r-dplyr
+  - r-ggplot2
+  - r-ggrepel
+  - r-ggtext
+  - r-scales
+  - bioconductor-missmethyl
+  - bioconductor-illuminahumanmethylation450kanno.ilmn12.hg19
+  - bioconductor-illuminahumanmethylationepicanno.ilm10b4.hg19
+  - bioconductor-illuminahumanmethylationepicv2anno.20a1.hg38
+  - yame >=1.40

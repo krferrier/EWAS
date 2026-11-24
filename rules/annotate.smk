@@ -1,3 +1,5 @@
+localrules: get_annotation_data, fetch_kycg_features
+
 def get_file(wildcards):
     if config["stratified_ewas"] == "yes":
         in_file = CW.meta_analysis_results
@@ -6,21 +8,114 @@ def get_file(wildcards):
     return(in_file)
 
 rule get_annotation_data:
+    # Zhou lab Infinium annotation. The zhouserver.research.chop.edu paths this
+    # rule used to wget are retired; the tables now live in the GitHub repo
+    # zhou-lab/InfiniumAnnotationData and are pinned here by release tag
+    # (config: ewas_annotation.zhou_release).
     output:
-        epic_hg38 = protected("resources/ewas_annotation/EPIC_hg38.tsv.gz"),
-        epic_snp = protected("resources/ewas_annotation/EPIC_snp_key.tsv.gz"),
-        bios_eqtm = protected("resources/ewas_annotation/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt"),
-        hgnc = protected("resources/ewas_annotation/hgnc_complete_set_2025-07-01.txt")
+        gene_manifest = protected(CW.ewas_gene_manifest),
+        bios_eqtm = protected(CW.bios_eqtm_txt),
+        hgnc = protected(CW.hgnc_complete_set_txt),
+        manifest = CW.ewas_annotation_manifest
+    params:
+        gene_url = CW.ewas_gene_manifest_url,
+        eqtm_url = CW.bios_eqtm_url,
+        hgnc_url = CW.hgnc_complete_set_url,
+        platform = CW.array_platform,
+        genome = CW.genome_build,
+        release = CW.zhou_release,
+        gencode = CW.gencode_release
     shell:
         """
-        wget https://zhouserver.research.chop.edu/InfiniumAnnotation/20210615/EPIC/EPIC.hg38.manifest.gencode.v36.tsv.gz \
-        -O {output.epic_hg38}
-        wget https://zhouserver.research.chop.edu/InfiniumAnnotation/20180909/EPIC/EPIC.hg38.commonsnp.tsv.gz \
-        -O {output.epic_snp}
-        wget https://molgenis26.gcc.rug.nl/downloads/biosqtlbrowser/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt \
-        -O {output.bios_eqtm}
-        wget https://storage.googleapis.com/public-download-files/hgnc/archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt \
-        -O {output.hgnc}
+        wget -O {output.gene_manifest}.tmp {params.gene_url}
+        mv {output.gene_manifest}.tmp {output.gene_manifest}
+
+        wget -O {output.bios_eqtm}.tmp {params.eqtm_url}
+        mv {output.bios_eqtm}.tmp {output.bios_eqtm}
+
+        wget -O {output.hgnc}.tmp {params.hgnc_url}
+        mv {output.hgnc}.tmp {output.hgnc}
+
+        {{
+          echo -e "resource\tplatform\tgenome_build\trelease\tsource\tcreated"
+          echo -e "zhou_gene_manifest_gencode_{params.gencode}\t{params.platform}\t{params.genome}\t{params.release}\t{params.gene_url}\t$(date -Iseconds)"
+          echo -e "bios_eqtm\tNA\tNA\tNA\t{params.eqtm_url}\t$(date -Iseconds)"
+          echo -e "hgnc_complete_set\tNA\tNA\tNA\t{params.hgnc_url}\t$(date -Iseconds)"
+        }} > {output.manifest}
+        """
+
+rule fetch_kycg_features:
+    # KYCG feature sets from the coherent release (zhou-lab/InfiniumAnnotation),
+    # which is a different repo from the gene manifest above. These are bit- or
+    # state-packed and row-aligned to <platform>.ordering.tsv.gz, so the
+    # ordering file is fetched alongside them.
+    #
+    # Published filenames are date-stamped and the dates differ per platform
+    # (EPIC ships 27 files, EPICv2 25, MSA 45), so files are matched by prefix
+    # and saved under a normalised name. A set that a platform does not publish
+    # is simply skipped; annotation.R adds a column only for what is present.
+    output:
+        kycg = directory(CW.kycg_dir),
+        ordering = protected(CW.probe_ordering),
+        manifest = CW.kycg_manifest,
+        registry = CW.kycg_registry
+    params:
+        api_url = CW.kycg_api_url,
+        raw_base = CW.kycg_raw_base,
+        ordering_url = CW.probe_ordering_url,
+        registry_url = CW.kycg_registry_url,
+        platform = CW.array_platform,
+        release = CW.zhou_release,
+        prefixes = " ".join(CW.KYCG_FEATURE_SETS),
+        tested = " ".join(CW.kycg_enrichment_sets),
+        wanted = " ".join(CW.kycg_download_sets)
+    conda:
+        "../envs/ewas.yaml"
+    shell:
+        """
+        mkdir -p {output.kycg}
+
+        wget -O {output.ordering}.tmp {params.ordering_url}
+        mv {output.ordering}.tmp {output.ordering}
+
+        wget -O {output.registry}.tmp {params.registry_url}
+        mv {output.registry}.tmp {output.registry}
+
+        listing=$(mktemp)
+        curl -sSL --retry 3 --max-time 120 "{params.api_url}" \
+          | grep -oE '"name": "[^"]+\\.cm"' | sed 's/.*: "//; s/"//' | sort -u > "$listing"
+        if [ ! -s "$listing" ]; then
+          echo "ERROR: no KYCG files listed for {params.platform} at {params.release}." >&2
+          echo "       Checked {params.api_url}" >&2
+          rm -f "$listing"; exit 1
+        fi
+
+        {{
+          echo -e "feature_set\tpublished_file\tplatform\trelease\tannotation_column\tenrichment_tested\tsource\tcreated"
+          while read -r src; do
+            [ -z "$src" ] && continue
+            p=$(echo "$src" | sed -E 's/(\\.[0-9]{{8}})?\\.cm$//')
+            case " {params.wanted} " in
+              *" all "*) ;;
+              *" ${{p}} "*) ;;
+              *) continue;;
+            esac
+            curl -sSL --retry 3 --max-time 900 -o "{output.kycg}/${{p}}.cm" \
+              "{params.raw_base}/${{src}}"
+            curl -sSL --retry 3 --max-time 300 -o "{output.kycg}/${{p}}.cm.idx" \
+              "{params.raw_base}/${{src}}.idx" || rm -f "{output.kycg}/${{p}}.cm.idx"
+            col="no"; tst="no"
+            case " {params.prefixes} " in *" ${{p}} "*) col="yes";; esac
+            case " {params.tested} " in
+              *" all "*) tst="yes";;
+              *" ${{p}} "*) tst="yes";;
+            esac
+            echo -e "${{p}}\t${{src}}\t{params.platform}\t{params.release}\t${{col}}\t${{tst}}\t{params.raw_base}/${{src}}\t$(date -Iseconds)"
+          done < "$listing"
+          echo -e "probe_ordering\t{params.platform}.ordering.tsv.gz\t{params.platform}\t{params.release}\tNA\tNA\t{params.ordering_url}\t$(date -Iseconds)"
+        }} > {output.manifest}
+
+        rm -f "$listing"
         """
 
 rule prep_bios_eqtm_annotation:
@@ -28,7 +123,7 @@ rule prep_bios_eqtm_annotation:
         bios_eqtm = rules.get_annotation_data.output.bios_eqtm,
         hgnc = rules.get_annotation_data.output.hgnc
     output:
-        annotation = "resources/ewas_annotation/eQTM_annotations_BIOS_HGNC_2025-07-01.tsv"
+        annotation = CW.bios_eqtm_annotation
     conda:
         "../envs/ewas.yaml"
     shell:
@@ -42,9 +137,11 @@ rule prep_bios_eqtm_annotation:
 rule add_annotation:
     input:
         in_file = get_file,
-        hg38_file = rules.get_annotation_data.output.epic_hg38,
-        snp_file = rules.get_annotation_data.output.epic_snp,
+        gene_file = rules.get_annotation_data.output.gene_manifest,
+        cpg_islands = CW.dmr_cpg_island_bed,
         eqtm_file = rules.prep_bios_eqtm_annotation.output.annotation,
+        kycg_dir = rules.fetch_kycg_features.output.kycg,
+        ordering = rules.fetch_kycg_features.output.ordering,
         script = "scripts/annotation.R"
     params:
         o_dir = CW.out_dir,
@@ -59,9 +156,11 @@ rule add_annotation:
         """
         Rscript {input.script} \
         --input-file {input.in_file} \
-        --EPIC-anno {input.hg38_file} \
-        --EPIC-snp {input.snp_file} \
+        --gene-anno {input.gene_file} \
+        --cpg-islands {input.cpg_islands} \
         --eQTM-anno {input.eqtm_file} \
+        --kycg-dir {input.kycg_dir} \
+        --probe-order {input.ordering} \
         --out-dir {params.o_dir} \
         --stratified {params.strat} \
         --assoc {params.assoc} \

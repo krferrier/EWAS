@@ -8,10 +8,13 @@ rule plot_results:
         assoc = CW.assoc_var
     output: 
         CW.manhattan_qq_plot
+    log:
+        CW.log_path("plot_results")
     conda:
         "../envs/ewas.yaml"
     shell:
         """
+        exec >{log} 2>&1
         Rscript {input.script} \
         --input-file {input.in_file} \
         --out-dir {params.o_dir} \

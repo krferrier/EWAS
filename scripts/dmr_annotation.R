@@ -28,6 +28,10 @@ parser$add_argument("--assoc",
                     type="character",
                     nargs=1,
                     help="Association variable EWAS was performed with.")
+parser$add_argument("--min-probes",
+                    type="integer",
+                    default=2,
+                    help="Minimum number of CpGs required for a DMR to be kept (dmr_plots.min_probes).")
 
 
 #parse arguments
@@ -281,7 +285,7 @@ dmr_summary <- Reduce(
 # Remove internal helper columns before writing.
 internal_cols <- c("dmr_row_id", "region_id", "HGNC_symbol", "start_i", "end_i")
 dmr_summary[, (intersect(internal_cols, names(dmr_summary))) := NULL]
-dmr_summary <- dmr_summary %>% filter(n_probes >= 2)
+dmr_summary <- dmr_summary %>% filter(n_probes >= args$min_probes)
 
 fwrite(dmr_summary, file = out_file, sep = "\t", quote = FALSE, na = "NA")
 

@@ -1,41 +1,251 @@
-# Input data
-############################
+# =============================================================================
+# EWAS + DMR workflow configuration
+#
+#   [REQUIRED]  Describes your data or your question. Always set it.
+#   [CHECK]     Has a sensible default, but the right value depends on your
+#               study design. Read the note and adjust as needed.
+#   [DEFAULT]   Leave alone unless something upstream has changed.
+#
+# Run from the repo root:  snakemake --configfile config.yml
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Input data                                                          [REQUIRED]
+# -----------------------------------------------------------------------------
+# mvals: sample-by-CpG matrix of M-values: one row per sample, first column
+#        the sample ID (matching `pheno`), then one column per CpG. The probe
+#        IDs must match the array named in annotation.array_platform (see the
+#        note there about EPICv2/MSA suffixes). Keep the rows in the same order
+#        as `pheno`.
+# pheno: one row per sample, with the association variable, any stratification
+#        variables, and all model covariates. First column is the sample ID,
+#        second is the association variable, followed by all other variables.
 mvals: "data/mvals.csv.gz"
 pheno: "data/pheno.csv"
 
-# EWAS model parameters
-############################
+
+# -----------------------------------------------------------------------------
+# EWAS model                                                          [REQUIRED]
+# -----------------------------------------------------------------------------
+# association_variable: column in `pheno` to test each CpG against.
 association_variable: "BMI"
-stratified_ewas: "yes" # yes or no
-stratify_variables: ["sex"] # If yes, list which variable(s) to stratify on
 
-# Differentially Methylated Region (DMR) Analysis 
-#################################################
-dmr_analysis: "yes" # yes or no
-min_pvalue: 1.0e-4 # P-value threshold for beginning a region. Must have at least 1 decimal.
-window_size: 200 # extend region if another p-value within this distance is found
-region_filter: 0.05 # post-filter reported regions
+# stratified_ewas: "yes" runs a separate EWAS per stratum and meta-analyses the
+#   strata with METAL. "no" runs a single combined model.
+#   With "yes" the annotated results key on MarkerName and P-value; with "no"
+#   they key on cpgid and bacon.pval.
+stratified_ewas: "yes"
 
-# DMR annotation
-##################
-genome_build: "hg38" # genome build from USCS
+# stratify_variables: only used when stratified_ewas is "yes". Listing more than
+#   one variable crosses them, so every observed combination becomes a stratum.
+stratify_variables: ["sex"]
+
+
+# -----------------------------------------------------------------------------
+# Differentially Methylated Region (DMR) analysis
+# -----------------------------------------------------------------------------
+# dmr_analysis: "no" skips comb-p and everything downstream of it.   [REQUIRED]
+dmr_analysis: "yes"
+
+# comb-p parameters.                                                    [CHECK]
+# min_pvalue:    seed threshold -- a region starts at a CpG below this p-value.
+#                Must be written with a decimal point (1.0e-4, not 1e-4) so the
+#                schema reads it as a number.
+# window_size:   extend the region while another qualifying CpG lies within this
+#                many bp. Tighten for dense arrays, loosen for sparse ones.
+# region_filter: post-filter on the reported region p-value.
+min_pvalue: 1.0e-4
+window_size: 200
+region_filter: 0.05
+
+# DMR plotting. Only applies when dmr_analysis is "yes".
+# The two toggles below determine whether locus-zoom plots per identified region
+# are made, and whether a pdf of the manhattan and all locus-zoom plots is 
+# compiled. By default these are set to 'no' as the number of significant regions 
+# cannot be known in advance, and the number of files created could be quite large. 
+# Turn make_zoom on when you want to look at individual regions.
+#
+dmr_plots:
+  # Locus-zoom plot + gene track per significant region cluster.         [CHECK]
+  make_zoom: "no"
+  # Single multi-panel figure combining the manhattan and the zoom plots.
+  # Only meaningful with make_zoom: "yes".                               [CHECK]
+  make_combined: "no"
+  combined_formats: "pdf"
+
+  # Minimum number of CpGs a region needs. Passed to comb-p as
+  # --region-filter-n, so smaller regions are dropped from the region-level
+  # results, and also used for highlighting and zoom plots.
+  # 1 includes single-CpG regions.                                       [CHECK]
+  min_probes: 2
+  # Upper limit of the manhattan y axis; -1 lets the data set it.      [DEFAULT]
+  max_y: -1
+  # bp of context on each side of a zoomed cluster, and the largest gap in bp
+  # between regions still grouped into one zoom window.                [DEFAULT]
+  zoom_padding: 2000
+  cluster_gap: 3000
+
+
+# -----------------------------------------------------------------------------
+# Genome build                                                        [REQUIRED]
+# -----------------------------------------------------------------------------
+# Selects both the UCSC tracks and the Zhou manifest. If you change this, also
+# change annotation.gencode_release below -- they are tied together.
+genome_build: "hg38"
+
+
+# -----------------------------------------------------------------------------
+# Annotation resources                                                 [DEFAULT]
+# -----------------------------------------------------------------------------
+# Every downloaded annotation file lives under one cache root, subdivided by
+# source because each is versioned differently:
+#
+#   <cache_dir>/zhou/<array_platform>/<zhou_release>/   Zhou Infinium manifest
+#   <cache_dir>/ucsc/<genome_build>/<cache_tag>/        UCSC tracks
+#   <cache_dir>/eqtm/                                   BIOS eQTM + HGNC
+
 annotation:
-  method: local
-  gene_table: refGene
-  # Use "latest" during active development.
-  # For a manuscript/reproducible release, set this to a fixed date like "2026-06-08".
-  cache_tag: latest
+  cache_dir: "resources/annotation"
+
+  # -- Zhou Infinium annotation (CpG-level gene/promoter annotation) --
+  # array_platform must match the probe IDs in `mvals`.               [REQUIRED]
+  #   EPIC, HM450, HM27, Mammal40 -> bare IDs      (cg00000029)
+  #   EPICv2, MSA                 -> suffixed IDs  (cg00000029_TC21)
+  # All platforms share the same 10-column manifest schema. If your matrix has 
+  # stripped the EPICv2/MSA suffix the join will not fail, but the number of 
+  # CpGs with annotation information will be quite low. A warning is shown when
+  # the match rate is low.
+  array_platform: "EPIC"
+
+  # Git tag in zhou-lab/InfiniumAnnotationData. "main" tracks the latest
+  # release; pin to a tag such as "v8.1" for a reproducible run.       [DEFAULT]
+  zhou_release: "v8.1"
+
+  # GENCODE release in the manifest filename, tied to genome_build:    [CHECK]
+  #   hg38 -> v41   hg19 -> v26lift37   mm10 -> vM25   mm39 -> vM31
+  gencode_release: "v41"
+
+  zhou_raw_base: "https://github.com/zhou-lab/InfiniumAnnotationData/raw"
+
+  # -- UCSC tracks (CpG islands for both EWAS and DMR; refGene and HGNC
+  #    only when dmr_analysis is "yes") --
+  # cache_tag: "latest" re-uses whatever was downloaded first. For a manuscript
+  # run, set an ISO date (e.g. "2026-06-08") so the cache path records when the
+  # tracks were pulled.                                                  [CHECK]
+  cache_tag: "latest"
+  gene_table: "refGene"
   ucsc_database_base: "https://hgdownload.soe.ucsc.edu/goldenPath"
   ucsc_gbdb_base: "https://hgdownload.soe.ucsc.edu/gbdb"
-  hgnc_complete_set_url: "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt"
 
-# Parallelization parameters
-############################
-chunk_size: 5000 # number of methylation sites per chunk 
-processing_type: "cluster" # sequential, multisession, multicore, or cluster
-workers: 4 # Number of workers per job
+  # -- eQTM annotation --                                              [DEFAULT]
+  # BIOS whole-blood cis-eQTMs (FDR 0.05), gene symbols resolved against a
+  # dated HGNC release so the mapping is reproducible.
+  bios_eqtm_url: "https://molgenis26.gcc.rug.nl/downloads/biosqtlbrowser/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt"
+  hgnc_complete_set_url: "https://storage.googleapis.com/public-download-files/hgnc/archive/archive/quarterly/tsv/hgnc_complete_set_2025-07-01.txt"
 
-# Output parameters
-############################
-out_directory: "results_testing/" # Include trailing '/'
-out_type: ".csv.gz" # .csv or .csv.gz
+
+# -----------------------------------------------------------------------------
+# Functional enrichment of the significant CpG set
+# -----------------------------------------------------------------------------
+# Three independent tests. A table for each is output in <out>/enrichment/:
+#   features  KYCG knowledgebases -- chromatin state, histone marks, TF binding,
+#             repeats, PMDs, A/B compartments (uses the same pinned v8.1 release
+#             as the annotation)
+#   pathways  GO and KEGG via missMethyl, which corrects for the number of
+#             probes per gene. Supports 450K, EPIC and EPICv2 only; on any other
+#             platform it writes an empty table
+#   traits    EWAS Atlas published trait associations
+#
+# The background for all three is the set of CpGs actually tested, never the
+# full array manifest. A test that cannot run writes an empty table rather than
+# failing the workflow.
+enrichment:
+  # "no" skips all three.                                             [REQUIRED]
+  run: "yes"
+
+  # How the significant (foreground) set is defined.                     [CHECK]
+  #   significance: fdr | bonferroni | nominal
+  #   threshold:    cutoff applied to the adjusted (or raw, if nominal) p-value
+  significance: "fdr"
+  threshold: 0.05
+
+  # Ignore features/terms/traits with fewer than this many probes in the
+  # background. Small sets give unstable enrichment estimates.            [CHECK]
+  min_set_size: 20
+
+  # Which KYCG knowledgebases to test.                                   [CHECK]
+  # The biological knowledgebases. On EPIC these 13 plus the four QC sets
+  # below are everything available for the platform; other platforms may have 
+  # more or less (MSA has 32, incl. tissue signatures, CoRSIVs, conservation),
+  # Any can be specified here. Several overlap by construction -- REMCChromHMM
+  # restates ChromHMM, HM is the data ChromHMM is called from, rmsk2 refines
+  # rmsk1, CGI duplicates the CGIposition column -- so read them as
+  # corroborating rather than independent.
+  #
+  # See data/kycg_set_coverage.tsv for everything available per platform.
+  #
+  # Add any published set by name, e.g. [ChromHMM, PMD, HM, MetagenePC], or
+  # use `all` for everything the platform publishes. Set names and what each
+  # one means are in the cached registry -- see the README section on the
+  # KYCG knowledgebases.
+  knowledgebases:
+    - ChromHMM        # 18 chromatin states (ENCODE)
+    - REMCChromHMM    # 15 chromatin states (Roadmap)
+    - HM              # histone marks and variants
+    - TFBSrm          # TF binding, 1188 motifs (ReMap 2022)
+    - CTCFbind        # methylation-sensitive CTCF binding
+    - CGI             # island / shore / shelf / open sea
+    - MetagenePC      # position relative to the gene
+    - ABCompartment   # Hi-C A/B compartments
+    - PMD             # partially methylated domains
+    - rmsk1           # repeat classes
+    - rmsk2           # repeat families
+    - Tetranuc2       # WCGW / SCGS sequence context
+    - ImprintingDMR   # positive control: allele-specific methylation
+
+  # Design and QC knowledgebases.                                        [CHECK]
+  # Tested and written to the same results table, tagged role = "qc", but
+  # plotted separately in <assoc>_enrichment_features_qc.jpg. 
+  # Set to "none" if you do not want these plots.
+  qc_knowledgebases:
+    - ProbeType         # type I vs type II chemistry
+    - InfiniumChemistry # finer design partition, incl. colour channel
+    - Blacklist         # ENCODE v2 artefact regions
+    - nFlankCG          # local CpG density
+
+  # Summary plots in <out>/enrichment/.                              [CHECK]
+  make_plots: "yes"
+  plot_top_n: 10
+
+  # EWAS Atlas association table, about 100 MB, cached on first use.    [DEFAULT]
+  # Note the Atlas is keyed on bare cg identifiers, so trait enrichment will
+  # not match EPICv2/MSA results that keep the design suffix.
+  ewas_atlas_url: "https://ngdc.cncb.ac.cn/ewas/downloads/batch?file=EWAS_Atlas_associations.tsv"
+
+
+# -----------------------------------------------------------------------------
+# Parallelization                                                         [CHECK]
+# -----------------------------------------------------------------------------
+# chunk_size:      CpGs per EWAS chunk. Larger uses more memory per worker.
+# processing_type: sequential | multisession | multicore | cluster.
+#                  Use "cluster" when Snakemake submits to a scheduler,
+#                  "multicore" or "multisession" on a single machine 
+#                  ("multicore" for linux/Mac, "multisession" for Windows),
+#                  "sequential" to debug.
+# workers:         workers per job. Keep at or below the cores you give
+#                  Snakemake (profiles/default/config.v8+.yaml sets cores to 1 by 
+#                  default, but this can be changed by appending `-j <n-cores>` to
+#                  your snakemake command).
+chunk_size: 5000
+processing_type: "cluster"
+workers: 4
+
+
+# -----------------------------------------------------------------------------
+# Output                                                              [REQUIRED]
+# -----------------------------------------------------------------------------
+# out_directory: must end in a trailing slash.
+# out_type:      ".csv.gz" is recommended for genome-wide results.
+out_directory: "results_testing/"
+out_type: ".csv.gz"
