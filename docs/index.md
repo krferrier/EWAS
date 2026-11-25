@@ -1,7 +1,7 @@
 # EWAS workflow
 
 !!! info "Version 2.0"
-    The previous stable release is available as tag [`v1.2`](https://github.com/krferrier/EWAS/tree/v1.2).
+    The previous stable release is available as tag [`v1.2.0`](https://github.com/krferrier/EWAS/tree/v1.2.0).
 
 This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by an Illumina Infinium methylation array. It was developed and tested against the EPIC (850k) array. The annotation step is platform-agnostic — every array Wanding Zhou has published annotation data for (EPIC, EPICv2, MSA, HM450, HM27, Mammal40, MM285) is available and can be specified via `annotation.array_platform`  in the `config.yaml`. Only EPIC has been executed and evaluated end to end, so treat the others as untested. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either a standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
 

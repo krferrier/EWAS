@@ -1,7 +1,7 @@
 # Overview
 
 ---
-> **Version 2.0.** The previous stable release is available as tag [`v1.2`](https://github.com/krferrier/EWAS/tree/v1.2).
+> **Version 2.0.** The previous stable release is available as tag [`v1.2.0`](https://github.com/krferrier/EWAS/tree/v1.2.0).
 >
 > 📖 **Documentation:** [krferrier.github.io/EWAS](https://krferrier.github.io/EWAS/)
 
@@ -744,7 +744,7 @@ If you use this workflow, please cite:
 
 > Ferrier K, Graff M, Konigsberg IR, Stanislawski M, Highland HM, Raffield LM, Carson AP, Boerwinkle E, Norris JM, Gignoux CR, Hendricks AE, Raghavan S, North KE, Young KL, Justice AE, Allison MA, Budoff MJ, Kasela S, Aguet F, Joseph JJ, Kooperberg C, Rich SS, Rotter JI, Lange EM, Lange LA. Epigenome-wide association study meta-analysis of BMI in African Americans. *HGG Adv.* 2025 Dec 4;7(1):100552. doi: [10.1016/j.xhgg.2025.100552](https://doi.org/10.1016/j.xhgg.2025.100552). PMID: [41351263](https://pubmed.ncbi.nlm.nih.gov/41351263/); PMCID: [PMC12903085](https://pmc.ncbi.nlm.nih.gov/articles/PMC12903085/).
 
-The analyses in that paper were performed with [v1.0.0](https://github.com/krferrier/EWAS/tree/v1.0.0) of this workflow. Please also state which version you used (for example, v2.0), since results from later versions can differ: v2.0 changed the annotation sources and added functional enrichment. GitHub's **Cite this repository** button (from `CITATION.cff`) gives the citation in APA and BibTeX formats.
+The analyses in that paper were performed with [v1.0.0](https://github.com/krferrier/EWAS/tree/v1.0.0) of this workflow. Please also state which version you used (for example, v2.0.0), since results from later versions can differ: v2.0.0 changed the annotation sources and added functional enrichment. GitHub's **Cite this repository** button (from `CITATION.cff`) gives the citation in APA and BibTeX formats.
 
 # License
 
