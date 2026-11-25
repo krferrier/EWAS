@@ -8,7 +8,7 @@ authors:
 repository-code: "https://github.com/krferrier/EWAS"
 url: "https://krferrier.github.io/EWAS/"
 license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0"
-version: "2.0"
+version: "2.0.1"
 date-released: "2026-11-24"
 keywords:
   - EWAS
