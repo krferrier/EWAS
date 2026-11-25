@@ -738,6 +738,14 @@ QQ plots are a scatterplot of the observed p-values against the expected p-value
 
 Often, the BACON adjustment does not drastically change the observed p-values compared with the unadjusted p-values and it can be difficult to assess visually whether the BACON adjustment 'worked'. The effect of the adjustment can more easily be discerned with a metric often referred to as the 'genomic inflation factor', or lambda (λ), which is a calculation of the deviation of the observed p-values from the expected p-values. A value of 1 indicates no inflation, while values greater than 1 indicate inflation and less than 1 indicate deflation. In general, the BACON adjustment should bring the λ closer to 1. The unadjusted λ ('lambda') and BACON-adjusted ('b-lambda') values can be found in the output results file ending in 'ewas_bacon_results'.
 
+# Citation
+
+If you use this workflow, please cite:
+
+> Ferrier K, Graff M, Konigsberg IR, Stanislawski M, Highland HM, Raffield LM, Carson AP, Boerwinkle E, Norris JM, Gignoux CR, Hendricks AE, Raghavan S, North KE, Young KL, Justice AE, Allison MA, Budoff MJ, Kasela S, Aguet F, Joseph JJ, Kooperberg C, Rich SS, Rotter JI, Lange EM, Lange LA. Epigenome-wide association study meta-analysis of BMI in African Americans. *HGG Adv.* 2025 Dec 4;7(1):100552. doi: [10.1016/j.xhgg.2025.100552](https://doi.org/10.1016/j.xhgg.2025.100552). PMID: [41351263](https://pubmed.ncbi.nlm.nih.gov/41351263/); PMCID: [PMC12903085](https://pmc.ncbi.nlm.nih.gov/articles/PMC12903085/).
+
+The analyses in that paper were performed with [v1.0.0](https://github.com/krferrier/EWAS/tree/v1.0.0) of this workflow. Please also state which version you used (for example, v2.0), since results from later versions can differ: v2.0 changed the annotation sources and added functional enrichment. GitHub's **Cite this repository** button (from `CITATION.cff`) gives the citation in APA and BibTeX formats.
+
 # License
 
 This workflow is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and share it for any **non-commercial** purpose, including academic research, teaching, personal study, and use by non-profit, educational, public research, public health, or government organizations. **Commercial use is not permitted.** If you would like to use this workflow for a commercial purpose, please contact the author.

@@ -32,6 +32,10 @@ snakemake -j 1           # run the bundled simulated test data
 `config.yml` is set up to run the simulated test data in `data/` with no
 changes. See [Running the workflow](usage.md) to point it at your own data.
 
+## Citation
+
+If you use this workflow, please cite [Ferrier *et al.* 2025, *HGG Advances*](https://doi.org/10.1016/j.xhgg.2025.100552). See [Citing](citing.md) for the full reference and BibTeX.
+
 ## License
 
 This workflow is free for non-commercial use under the

@@ -45,6 +45,7 @@ nav:
   - Annotation: annotation.md
   - Functional enrichment: enrichment.md
   - Interpreting BACON plots: bacon-plots.md
+  - Citing: citing.md
   - License and acknowledgements: license.md
 
 markdown_extensions:
