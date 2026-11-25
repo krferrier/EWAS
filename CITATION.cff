@@ -1,0 +1,58 @@
+cff-version: 1.2.0
+message: "If you use this workflow, please cite the article below and state which version of the workflow you used."
+title: "EWAS: a Snakemake workflow for epigenome-wide association studies"
+type: software
+authors:
+  - family-names: Ferrier
+    given-names: Kendra
+repository-code: "https://github.com/krferrier/EWAS"
+url: "https://krferrier.github.io/EWAS/"
+license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0"
+version: "2.0"
+date-released: "2026-11-24"
+keywords:
+  - EWAS
+  - DNA methylation
+  - Snakemake
+  - bioinformatics
+preferred-citation:
+  type: article
+  title: "Epigenome-wide association study meta-analysis of BMI in African Americans"
+  journal: "HGG Advances"
+  year: 2025
+  month: 12
+  volume: 7
+  issue: 1
+  start: 100552
+  doi: "10.1016/j.xhgg.2025.100552"
+  identifiers:
+    - type: other
+      value: "PMID:41351263"
+    - type: other
+      value: "PMCID:PMC12903085"
+  authors:
+    - {family-names: Ferrier, given-names: Kendra}
+    - {family-names: Graff, given-names: Mariaelisa}
+    - {family-names: Konigsberg, given-names: Iain R.}
+    - {family-names: Stanislawski, given-names: Maggie}
+    - {family-names: Highland, given-names: Heather M.}
+    - {family-names: Raffield, given-names: Laura M.}
+    - {family-names: Carson, given-names: April P.}
+    - {family-names: Boerwinkle, given-names: Eric}
+    - {family-names: Norris, given-names: Jill M.}
+    - {family-names: Gignoux, given-names: Chris R.}
+    - {family-names: Hendricks, given-names: Audrey E.}
+    - {family-names: Raghavan, given-names: Sridharan}
+    - {family-names: North, given-names: Kari E.}
+    - {family-names: Young, given-names: Kristin L.}
+    - {family-names: Justice, given-names: Anne E.}
+    - {family-names: Allison, given-names: Matthew A.}
+    - {family-names: Budoff, given-names: Mathew J.}
+    - {family-names: Kasela, given-names: Silva}
+    - {family-names: Aguet, given-names: François}
+    - {family-names: Joseph, given-names: Joshua J.}
+    - {family-names: Kooperberg, given-names: Charles}
+    - {family-names: Rich, given-names: Stephen S.}
+    - {family-names: Rotter, given-names: Jerome I.}
+    - {family-names: Lange, given-names: Ethan M.}
+    - {family-names: Lange, given-names: Leslie A.}

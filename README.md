@@ -2,6 +2,8 @@
 
 ---
 > **Version 2.0.** The previous stable release is available as tag [`v1.2`](https://github.com/krferrier/EWAS/tree/v1.2).
+>
+> 📖 **Documentation:** [krferrier.github.io/EWAS](https://krferrier.github.io/EWAS/)
 
 This repository is a snakemake workflow for performing Epigenome-Wide Association Studies (EWAS) of methylation measured by an Illumina Infinium methylation array. It was developed and tested against the EPIC (850k) array. The annotation step is platform-agnostic — every array Wanding Zhou has published annotation data for (EPIC, EPICv2, MSA, HM450, HM27, Mammal40, MM285) is available and can be specified via `annotation.array_platform`  in the `config.yaml`. Only EPIC has been executed and evaluated end to end, so treat the others as untested. This workflow can perform a standard EWAS or a stratified EWAS based on the variables provided for stratification. In either a standard or stratified EWAS, a linear regression model is used where the outcome is the methylation value (Beta or M-values) and the trait/phenotype you want to perform association testing with is the main predictor. All other variables included in the phenotype dataframe will be added as covariates to the model.
 
@@ -263,6 +265,33 @@ once and shared across runs. METAL is built once into `software/metal/`. See
 **Provenance** (`onstart` / `onsuccess` / `onerror` handlers)
 
 * A per-run record of the command and configuration at runtime. See [Run Provenance](#run-provenance).
+
+### *Run Provenance*
+
+<a name="run-provenance"></a>
+
+Every run that executes at least one job writes a record of how it was run to
+`<out_directory>/provenance/`. It is written by the Snakefile's `onstart`,
+`onsuccess` and `onerror` handlers rather than by a rule, so it is never
+skipped as "already up to date".
+
+Each run gets its own directory, `provenance/<run_id>/`, where `<run_id>` is
+the start time (`YYYYMMDDTHHMMSS`):
+
+| File | Contents |
+|------|----------|
+| `command.txt` | The exact command line, with each argument also on its own line |
+| `config_snapshot.yml` | A verbatim copy of every configuration file used |
+| `config_resolved.yml` | The merged configuration Snakemake ran with, including any `--config` overrides |
+| `run_info.yml` | Snakemake and Python versions, the workflow's git state (commit, branch, tag, uncommitted changes), host, user, working directory, start and end time, and final status |
+
+`provenance/runs.tsv` is an append-only index with one row per run: run ID,
+times, status and command.
+
+A dry run, or a run that reports "Nothing to be done", writes no record. No
+results were produced, and the record of the run that did produce them is
+already on disk. A failure to write provenance only prints a warning; it never
+stops the analysis.
 
 ### *Annotation Resources*
 
@@ -569,7 +598,7 @@ hollow ones do not.
 
 ### *Parallelization Parameters*
 
-The rule 'ewas' first chunks the methylation dataset into sets of CpGs where the length of each set is specified by the parameter `chunks` in the config file (default of 1000 CpGs if a number is not provided). Then, linear regressions are run for each chunk and the results combined back into one dataframe once all chunks have been processed. Run sequentially, this step could take several hours. However, each chunk can be processed in parallel to reduce the total computation time.
+The EWAS rules (`run_combined_ewas`, or `run_ewas_group` for each stratum) first split the methylation dataset into chunks of CpGs, sized by the required `chunk_size` setting in the config file (5000 in the provided `config.yml`; larger chunks use more memory per worker). Then, linear regressions are run for each chunk and the results combined back into one dataframe once all chunks have been processed. Run sequentially, this step could take several hours. However, each chunk can be processed in parallel to reduce the total computation time.
 
 The main step of the EWAS utilizes the [BiocParallel](https://bioconductor.org/packages/release/bioc/html/BiocParallel.html) R package to perform the linear regressions in parallel. You can specify the type of parallelization to be performed at this step in the config file. The options include: sequential, multisession (threads), multicore, or cluster. You must also specify the number of workers that you want to be used for the parallelization in the `workers` parameter of the config file. For more details on the different types of parallelization you can reference the BiocParallel documentation.
 
@@ -708,6 +737,14 @@ QQ plots are a scatterplot of the observed p-values against the expected p-value
 ![Example QQ plot from performing bias- and inflation-adjustment with BACON.](/data/example_plots/qqs_plot.jpg "Example QQ Plot")
 
 Often, the BACON adjustment does not drastically change the observed p-values compared with the unadjusted p-values and it can be difficult to assess visually whether the BACON adjustment 'worked'. The effect of the adjustment can more easily be discerned with a metric often referred to as the 'genomic inflation factor', or lambda (λ), which is a calculation of the deviation of the observed p-values from the expected p-values. A value of 1 indicates no inflation, while values greater than 1 indicate inflation and less than 1 indicate deflation. In general, the BACON adjustment should bring the λ closer to 1. The unadjusted λ ('lambda') and BACON-adjusted ('b-lambda') values can be found in the output results file ending in 'ewas_bacon_results'.
+
+# Citation
+
+If you use this workflow, please cite:
+
+> Ferrier K, Graff M, Konigsberg IR, Stanislawski M, Highland HM, Raffield LM, Carson AP, Boerwinkle E, Norris JM, Gignoux CR, Hendricks AE, Raghavan S, North KE, Young KL, Justice AE, Allison MA, Budoff MJ, Kasela S, Aguet F, Joseph JJ, Kooperberg C, Rich SS, Rotter JI, Lange EM, Lange LA. Epigenome-wide association study meta-analysis of BMI in African Americans. *HGG Adv.* 2025 Dec 4;7(1):100552. doi: [10.1016/j.xhgg.2025.100552](https://doi.org/10.1016/j.xhgg.2025.100552). PMID: [41351263](https://pubmed.ncbi.nlm.nih.gov/41351263/); PMCID: [PMC12903085](https://pmc.ncbi.nlm.nih.gov/articles/PMC12903085/).
+
+The analyses in that paper were performed with [v1.0.0](https://github.com/krferrier/EWAS/tree/v1.0.0) of this workflow. Please also state which version you used (for example, v2.0), since results from later versions can differ: v2.0 changed the annotation sources and added functional enrichment. GitHub's **Cite this repository** button (from `CITATION.cff`) gives the citation in APA and BibTeX formats.
 
 # License
 
